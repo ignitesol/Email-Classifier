@@ -4,7 +4,7 @@ Spyder Editor
 
 This is a temporary script file.
 """
-
+import re
 import pandas as pd
 import numpy as np
 import matplotlib as mpl
@@ -17,9 +17,6 @@ import time
 
 def get_unique_words(doc):
     # define splitter with non-alphabetic chars
-#    special_chars = '!"#%&\'()*+,-./:;<=>?[\\]^_`{|}~-'
-#    regex_str = r'[\s\d]+|(?:(?=\\b)[{}]])+'.format(special_chars)
-#    regex_str = r'[\s\d]+|[{}]+'.format(special_chars)
     regex_str = r'[\W]+'
     splitter = re.compile(regex_str)
     # split documents with splitter as separator
