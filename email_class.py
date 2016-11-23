@@ -41,7 +41,7 @@ def train_classifier(cl):
 
 
 # classifier class ################################################################################
-class FeatureClassifier:
+class BasicClassifier:
     # init with feature_extraction_method and storage_db_filename
     def __init__(self, get_features, filename=None):
         self.feature_category_count = pd.DataFrame() # number of features by category
