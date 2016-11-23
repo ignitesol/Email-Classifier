@@ -31,6 +31,15 @@ def get_unique_words(email_txt):
     return list(set(words)) + email_ids
 
 
+# training function ###############################################################################
+def train_classifier(cl):
+    cl.train('Nobody owns the water.',['good'])
+    cl.train('the quick rabbit jumps fences',['good'])
+    cl.train('buy pharmaceuticals now',['ugly','bad'])
+    cl.train('make quick money at the online casino',['bad'])
+    cl.train('the quick brown fox jumps',['good'])
+
+
 # classifier class ################################################################################
 class FeatureClassifier:
     # init with feature_extraction_method and storage_db_filename
@@ -108,10 +117,3 @@ class FeatureClassifier:
             return init_prob
 
 
-# training function ###############################################################################
-def train_classifier(cl):
-    cl.train('Nobody owns the water.',['good'])
-    cl.train('the quick rabbit jumps fences',['good'])
-    cl.train('buy pharmaceuticals now',['ugly','bad'])
-    cl.train('make quick money at the online casino',['bad'])
-    cl.train('the quick brown fox jumps',['good'])
