@@ -12,7 +12,7 @@ from scipy import stats
 # function to extract list of features ############################################################
 def get_words(item):
     '''
-    list all the unique words in a text
+    list all the words in a text
     '''
     # list all email ids
     regex_for_email_ids = r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+'
@@ -30,6 +30,9 @@ def get_words(item):
 
 # training function ###############################################################################
 def train_example(cl):
+    '''
+    train on example texts
+    '''
     cl.train('Nobody owns the water.',['good'])
     cl.train('the quick rabbit jumps fences',['good'])
     cl.train('buy pharmaceuticals now',['bad'])
@@ -37,8 +40,12 @@ def train_example(cl):
     cl.train('the quick brown fox jumps',['good'])
 
 
+
 # basic classifier ################################################################################
 class BasicClassifier:
+    '''
+    basic classifier
+    '''
     # init with feature_extraction_method and database db_name_table
     def __init__(self, get_features, db_name_table=None):
         self.df_feature_category_count = pd.DataFrame() # number of features by category
@@ -105,11 +112,11 @@ class BasicClassifier:
 
     # weighted probability
     # weighted_p(feature/category)
-    def feature_category_wghtprob(self, feature, category, probfunc, init_weight=1, init_prob=0.5):
+    def feature_category_wghtprob(self, feature, category, pfunc, init_weight=1, init_prob=0.5):
         init_weight = pd.Series(init_weight,index=feature)
         init_prob = pd.Series(init_prob, index=feature)
         try:
-            feature_prob = probfunc(feature, category)
+            feature_prob = pfunc(feature, category)
             feature_count = self.df_feature_category_count.sum(axis=1)[feature]
             prob = feature_prob.apply(lambda x: (x*feature_count + init_weight*init_prob)\
                                                 /(init_weight+feature_count) ,axis=0)
@@ -120,8 +127,10 @@ class BasicClassifier:
 
 # Bernoulli Naive Bayesian Classifier #############################################################
 class BernoulliNBclassifier(BasicClassifier):
-    # prior
-    # p(item/category)
+    '''
+    bernoulli naive bayesian classifier
+    '''
+    # prior probability of p(item/category)
     # probability that an item belongs to given category
     # p(item/category) = product[ p(feature/category) ] for each feature in item
     def get_item_category_prob(self, item, category):
@@ -131,3 +140,5 @@ class BernoulliNBclassifier(BasicClassifier):
                                                          self.feature_category_prob).product()
         return p_item_category
 
+
+##########################################
