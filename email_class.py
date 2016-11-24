@@ -5,20 +5,18 @@
 import re
 import pandas as pd
 import numpy as np
-# import matplotlib as mpl
-# import matplotlib.pyplot as plt
 from scipy import stats
 import sqlite3
 import sqlalchemy
 
-#test test
 
 # placeholder for custom exceptions ###############################################################
 class CustomException(Exception):
     pass
 
+
 # function to extract list of features ############################################################
-def get_unique_words(email_txt):
+def get_words(email_txt):
     '''
     list all the unique words in a text
     '''
@@ -29,17 +27,19 @@ def get_unique_words(email_txt):
     regex_for_splitter = r'[\W]+'
     splitter = re.compile(regex_for_splitter)
     # split text with splitter as separator
-    words = [s.lower() for s in re.split(splitter, email_txt) if len(s)>2]
-    return list(set(words)) + email_ids
+    words = [s.lower() for s in re.split(splitter, email_txt) if len(s)>2] + email_ids
+    words_count = pd.Series(1, index = list(set(words)))
+    words_count.index.name = 'Features'
+    return words_count
 
 
 # training function ###############################################################################
 def train_classifier(cl):
-    cl.train('Nobody owns the water.',['good'])
-    cl.train('the quick rabbit jumps fences',['good'])
-    cl.train('buy pharmaceuticals now',['ugly','bad'])
-    cl.train('make quick money at the online casino',['bad'])
-    cl.train('the quick brown fox jumps',['good'])
+    cl.train('Nobody owns the water.',['c1'])
+    cl.train('the quick rabbit jumps fences',['c2'])
+    cl.train('buy pharmaceuticals now',['c2','c3'])
+    cl.train('make quick money at the online casino',['c3'])
+    cl.train('the quick brown fox jumps',['c1'])
 
 
 # classifier class ################################################################################
@@ -47,17 +47,15 @@ class BasicClassifier:
     # init with feature_extraction_method and storage_db_filename
     def __init__(self, get_features, filename=None):
         self.feature_category_count = pd.DataFrame() # number of features by category
-        self.category_count = pd.Series().rename('n_items') # number of items in each category
+        self.category_count = pd.Series().rename('N_Items') # number of items in each category
         self.get_features = get_features # function to extract features
 
     # increment the (feature,category) count
     def increment_feature_category_count(self, features, categories):
-        feature_category_ones = pd.DataFrame(1,index=features,columns=categories)
-        self.feature_category_count = self.feature_category_count\
-                                            .add(feature_category_ones,fill_value=0)\
-                                            .fillna(0)
-        self.feature_category_count.index.name = 'features'
-        self.feature_category_count.columns.name = 'categories'
+        self.feature_category_count = self.feature_category_count.add(features, fill_value=0)\
+                                                                    .fillna(0)
+        self.feature_category_count.index.name = 'Features'
+        self.feature_category_count.columns.name = 'Categories'
 
     # increment the item count in a category
     def increment_category_count(self, categories):
@@ -69,12 +67,14 @@ class BasicClassifier:
                     self.category_count[cat] += 1
                 except:
                     self.category_count[cat] = 1
-                    self.category_count.index.name = 'categories'
+                    self.category_count.index.name = 'Categories'
 
     # train classifier given an item and category
     def train(self, item, categories):
-        features = self.get_features(item)
-        self.increment_feature_category_count(features,categories)
+        features_count = self.get_features(item)
+        features = pd.concat([features_count]*len(categories), axis=1)
+        features.columns = categories
+        self.increment_feature_category_count(features, categories)
         self.increment_category_count(categories)
 
     # number of times a feature occurred in a category - (feature,category) value
@@ -99,7 +99,7 @@ class BasicClassifier:
     def get_categories(self):
         return list(self.category_count.index)
 
-    # probability that a givem feature will appear in an item belonging to given category
+    # probability that a given feature will appear in an item belonging to given category
     def get_feature_category_prob(self, feature, category):
         try:
             return self.get_feature_category_count(feature, category)\
@@ -107,7 +107,7 @@ class BasicClassifier:
         except:
             return 0
 
-    # weighted probablility - p(feature/category)
+    # weighted probability - p(feature/category)
     def get_feature_category_weightedprob(self, feature, category, probfunc,
                                           init_weight=1, init_prob=0.5):
         try:
