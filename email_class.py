@@ -16,18 +16,19 @@ class CustomException(Exception):
 
 
 # function to extract list of features ############################################################
-def get_words(email_txt):
+def get_words(txt):
     '''
     list all the unique words in a text
     '''
     # list all email ids
     regex_for_email_ids = r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+'
-    email_ids = re.findall(regex_for_email_ids, email_txt)
+    email_ids = re.findall(regex_for_email_ids, txt)
     # splitter with non-alphabetic chars, with the exception of @
     regex_for_splitter = r'[\W]+'
     splitter = re.compile(regex_for_splitter)
     # split text with splitter as separator
-    words = [s.lower() for s in re.split(splitter, email_txt) if len(s)>2] + email_ids
+    words = [s.lower() for s in re.split(splitter, txt) if len(s)>2] + email_ids
+    # list unique words and assign count of 1 for each - as a series of word counts
     words_count = pd.Series(1, index = list(set(words)))
     words_count.index.name = 'Features'
     return words_count
