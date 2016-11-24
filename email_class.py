@@ -34,7 +34,7 @@ def get_words(email_txt):
 
 
 # training function ###############################################################################
-def train_classifier(cl):
+def train_example(cl):
     cl.train('Nobody owns the water.',['c1'])
     cl.train('the quick rabbit jumps fences',['c2'])
     cl.train('buy pharmaceuticals now',['c2','c3'])
@@ -42,7 +42,7 @@ def train_classifier(cl):
     cl.train('the quick brown fox jumps',['c1'])
 
 
-# classifier class ################################################################################
+# basic classifier ################################################################################
 class BasicClassifier:
     # init with feature_extraction_method and storage_db_filename
     def __init__(self, get_features, filename=None):
@@ -51,9 +51,10 @@ class BasicClassifier:
         self.get_features = get_features # function to extract features
 
     # increment the (feature,category) count
-    def increment_feature_category_count(self, features, categories):
-        self.feature_category_count = self.feature_category_count.add(features, fill_value=0)\
-                                                                    .fillna(0)
+    def increment_feature_category_count(self, features_categories):
+        self.feature_category_count = self.feature_category_count\
+                                            .add(features_categories, fill_value=0)\
+                                            .fillna(0)
         self.feature_category_count.index.name = 'Features'
         self.feature_category_count.columns.name = 'Categories'
 
@@ -72,9 +73,9 @@ class BasicClassifier:
     # train classifier given an item and category
     def train(self, item, categories):
         features_count = self.get_features(item)
-        features = pd.concat([features_count]*len(categories), axis=1)
-        features.columns = categories
-        self.increment_feature_category_count(features, categories)
+        features_categories = pd.concat([features_count]*len(categories), axis=1)
+        features_categories.columns = categories
+        self.increment_feature_category_count(features_categories)
         self.increment_category_count(categories)
 
     # number of times a feature occurred in a category - (feature,category) value
