@@ -8,6 +8,103 @@ import numpy as np
 import sqlalchemy
 import os
 from scipy import stats
+from sklearn.model_selection import train_test_split
+
+
+pd.set_option('display.max_columns',5)
+pd.set_option('display.max_rows',20)
+pd.set_option('expand_frame_repr',False)
+
+
+# walk through and list files in DataSet folder ###################################################
+def list_files_paths(dir_name):
+    data_dir = './DataSets/' + dir_name
+    df_list = []
+    for dirpath,dirnames,filenames in os.walk(data_dir):
+        df = pd.DataFrame(filenames,columns=['filename'])
+        df['filepath'] = df['filename'].map(lambda fname: dirpath + '/' + fname)
+        df['category'] = dirpath.split(sep='/')[-1]
+        df_list.append(df)
+    df_items_categories = pd.concat(df_list, axis=0, ignore_index=True)
+    return df_items_categories
+
+
+# train and test on datadir #######################################################################
+def train_test_on_datadir(cl, dir_name='20_newsgroup', samplefrac=0.2, randstate=42, testsize=0.2):
+    df_items_categories = list_files_paths(dir_name).sample(frac=samplefrac, replace=False,
+                                                            random_state = randstate*42)
+    X = df_items_categories['filepath']
+    y = df_items_categories['category']
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size = testsize,
+                                                        random_state = randstate)
+    n_train = X_train.size
+    n_test = X_test.size
+    print('\nTotal Sample Size:', n_train+n_test)
+    print('Training Sample Size:', n_train)
+    print('Testing Sample Size:', n_test)
+
+    # train it ##########################################################
+    def train_classifier(cl, X_train, y_train):
+        print('\nTraining ...')
+        for i, (rowidx, file_path) in enumerate(X_train.iteritems()):
+            try:
+                with open(file_path, 'r') as txt_file:
+                    txt = txt_file.read()
+            except UnicodeDecodeError:
+                continue
+            category = y_train[rowidx]
+            cl.train(txt,[category])
+            if not bool((i + 1) % 100):
+                print('Trained on', i + 1, 'files', flush=True)
+
+    # use it ###########################################################
+    def use_classifier(cl, X_test):
+        print('\nTesting ...')
+        df_test = pd.DataFrame(index=X_test.index)
+        df_test['Pred_One_Category'] = '-'
+        df_test['Pred_Multi_Category'] = '-'
+        df_test['Accuracy_One_Category'] = 0
+        df_test['Accuracy_Multi_Category'] = 0
+        for i, (rowidx, file_path) in enumerate(X_test.iteritems()):
+            try:
+                with open(file_path, 'r') as txt_file:
+                    txt = txt_file.read()
+            except UnicodeDecodeError:
+                continue
+            p_categories, top_categories = cl.classify(txt, threshold=2)
+            df_test.set_value(rowidx,'Pred_Multi_Category', top_categories)
+            df_test.set_value(rowidx,'Pred_One_Category', top_categories[0])
+            if not bool((i + 1) % 100):
+                print('Tested on', i + 1, 'files', flush=True)
+        return df_test
+
+    train_classifier(cl, X_train, y_train)
+    df_test = use_classifier(cl, X_test)
+
+    # find accuracy
+    df_test['True_Category'] = y_test
+    def check_single_accuracy(row):
+        return int( row['True_Category'] == row['Pred_One_Category'] )
+    def check_multi_accuracy(row):
+        return int( row['True_Category'] in row['Pred_Multi_Category'] )
+    df_test['Accuracy_One_Category'] = df_test.apply(check_single_accuracy, axis=1)
+    df_test['Accuracy_Multi_Category'] = df_test.apply(check_multi_accuracy, axis=1)
+    # return accuracy and predictions
+    return df_test[['Accuracy_One_Category','Accuracy_Multi_Category']].sum()/n_test,\
+           df_test[['True_Category','Pred_One_Category','Pred_Multi_Category',\
+                    'Accuracy_One_Category', 'Accuracy_Multi_Category']]
+
+
+# train on sentences ##############################################################################
+def train_on_sentences(cl):
+    '''
+    train on example texts
+    '''
+    cl.train('Nobody owns the water.',['good'])
+    cl.train('the quick rabbit jumps fences',['good'])
+    cl.train('buy pharmaceuticals now',['bad'])
+    cl.train('make quick money at the online casino',['bad'])
+    cl.train('the quick brown fox jumps',['good'])
 
 
 # custom exception ################################################################################
@@ -24,29 +121,14 @@ def get_words(item):
     regex_for_email_ids = r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+'
     email_ids = re.findall(regex_for_email_ids, item)
     # splitter with non-alphabetic chars, with the exception of @
+    sub_item = re.sub('\W+\d+',' ', item)
     regex_for_splitter = r'[\W]+'
     splitter = re.compile(regex_for_splitter)
-    # split text with splitter as separator
-    words = [s.lower() for s in re.split(splitter, item) if len(s)>2] + email_ids
+    words = [s.lower() for s in re.split(splitter, sub_item) if len(s)>2] + email_ids
     # list unique words and assign count of 1 for each - as a series of word counts
     words_count = pd.Series(1, index = list(set(words)))
     words_count.index.name = 'Features'
     return words_count
-
-
-# training functions ###############################################################################
-def train_example(cl):
-    '''
-    train on example texts
-    '''
-    cl.train('Nobody owns the water.',['good'])
-    cl.train('the quick rabbit jumps fences',['good'])
-    cl.train('buy pharmaceuticals now',['bad'])
-    cl.train('make quick money at the online casino',['bad'])
-    cl.train('the quick brown fox jumps',['good'])
-
-def train_on_dir(dir_name):
-    pass
 
 
 # basic classifier ################################################################################
