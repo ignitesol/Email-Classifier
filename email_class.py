@@ -53,6 +53,18 @@ def predict_categories(cl, X_test):
     return df_test
 
 
+# accuracy of prediction ##########################################################################
+def prediction_accuracy(df_pred, y_test):
+    df_pred['True_Category'] = y_test
+    def check_single_accuracy(row):
+        return int( row['True_Category'] == row['Pred_One_Category'] )
+    def check_multi_accuracy(row):
+        return int( row['True_Category'] in row['Pred_Multi_Category'] )
+    df_pred['Accuracy_One_Category'] = df_pred.apply(check_single_accuracy, axis=1)
+    df_pred['Accuracy_Multi_Category'] = df_pred.apply(check_multi_accuracy, axis=1)
+    return df_pred
+
+
 # walk through and list files in DataSet folder ###################################################
 def list_files_paths(dir_name):
     data_dir = './DataSets/' + dir_name
@@ -68,6 +80,11 @@ def list_files_paths(dir_name):
 
 # train and test on datadir #######################################################################
 def train_test_on_datadir(cl, dir_name='20_newsgroup', samplefrac=0.2, randstate=42, testsize=0.2):
+
+    print('\nTotal number of items in persistent training data:', cl.ds_category_count.sum())
+    print('Number of items in persistent training data, by category:')
+    print(cl.ds_category_count)
+
     df_items_categories = list_files_paths(dir_name).sample(frac=samplefrac, replace=False,
                                                             random_state = randstate*42)
     X = df_items_categories['filepath']
@@ -81,11 +98,12 @@ def train_test_on_datadir(cl, dir_name='20_newsgroup', samplefrac=0.2, randstate
     print('Testing Sample Size:', n_test)
 
     # train the classifier on training dataset
-    print('\nTraining ...')
+    print('\nTraining on new data ...')
     t1 = time.time()
     train_classifier(cl, X_train, y_train)
     t2 = time.time()
-    print('\nFinished Training on {:0.0f} items in in {:0.0f} seconds.'.format(n_train, t2-t1) )
+    print('\nFinished Training on {:0.0f} items in in {:0.0f} sec - {:0.0f} items per sec.'\
+                .format(n_train, t2-t1, n_train/(t2-t1)) )
     print('\nTotal number of items used:', cl.ds_category_count.sum())
     print('Number of items trained, by category:')
     print(cl.ds_category_count)
@@ -98,24 +116,20 @@ def train_test_on_datadir(cl, dir_name='20_newsgroup', samplefrac=0.2, randstate
     parts_X_test = np.array_split(X_test,n_jobs)
     tasks_iterator = ( delayed(predict_categories)(cl, part_X) for part_X in  parts_X_test)
     list_df_test = parallelizer(tasks_iterator)
-    df_test = pd.concat(list_df_test,axis=0)
+    df_prediction = pd.concat(list_df_test,axis=0)
     # df_test = predict_categories(cl,X_test)
     t2 = time.time()
-    print('\nFinished Classification of {:0.0f} items in {:0.0f} seconds'.format(n_test,t2-t1) )
+    print('\nFinished Classification of {:0.0f} items in {:0.0f} sec - {:0.0f} items per sec.'\
+                .format(n_test,t2-t1, n_test/(t2-t1)) )
 
-    # find accuracy of classification
-    df_test['True_Category'] = y_test
-    def check_single_accuracy(row):
-        return int( row['True_Category'] == row['Pred_One_Category'] )
-    def check_multi_accuracy(row):
-        return int( row['True_Category'] in row['Pred_Multi_Category'] )
-    df_test['Accuracy_One_Category'] = df_test.apply(check_single_accuracy, axis=1)
-    df_test['Accuracy_Multi_Category'] = df_test.apply(check_multi_accuracy, axis=1)
-
+    # find accuracy of prediction
+    df_test = prediction_accuracy(df_prediction, y_test)
+    print('\n')
+    print(df_test[['Accuracy_One_Category','Accuracy_Multi_Category']].sum()/n_test,'\n')
     # return accuracy and predictions
-    return df_test[['Accuracy_One_Category','Accuracy_Multi_Category']].sum()/n_test,\
-           df_test[['True_Category','Pred_One_Category','Pred_Multi_Category',\
-                    'Accuracy_One_Category', 'Accuracy_Multi_Category']]
+    column_order = ['True_Category','Pred_One_Category','Accuracy_One_Category',
+                    'Pred_Multi_Category','Accuracy_Multi_Category']
+    return df_test[column_order]
 
 
 # train on sentences ##############################################################################
@@ -178,6 +192,8 @@ class BasicClassifier:
         try:
             self.ds_category_count[categories] += 1
         except (KeyError,ValueError):
+            # categories_in = list(set(categories).intersection(set(self.ds_category_count.index)))
+            # categories_ex = list(set(categories).difference(set(self.ds_category_count.index)))
             for cat in categories:
                 try:
                     self.ds_category_count[cat] += 1
