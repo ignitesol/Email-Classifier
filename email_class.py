@@ -12,8 +12,6 @@ from sklearn.model_selection import train_test_split
 from joblib import Parallel, delayed
 import time
 
-
-
 pd.set_option('display.max_columns',5)
 pd.set_option('display.max_rows',24)
 pd.set_option('expand_frame_repr',False)
@@ -87,8 +85,8 @@ def train_test_on_datadir(cl, dir_name='20_newsgroup', samplefrac=0.2, randstate
     t1 = time.time()
     train_classifier(cl, X_train, y_train)
     t2 = time.time()
-    print('Finished Training on %d' % n_train, 'items in', t2-t1, 'seconds')
-    print('Total number of items used:', cl.ds_category_count.sum())
+    print('\nFinished Training on {:0.0f} items in in {:0.0f} seconds.'.format(n_train, t2-t1) )
+    print('\nTotal number of items used:', cl.ds_category_count.sum())
     print('Number of items trained, by category:')
     print(cl.ds_category_count)
 
@@ -103,7 +101,7 @@ def train_test_on_datadir(cl, dir_name='20_newsgroup', samplefrac=0.2, randstate
     df_test = pd.concat(list_df_test,axis=0)
     # df_test = predict_categories(cl,X_test)
     t2 = time.time()
-    print('Finished Classification of %d' % n_test, 'items in', t2-t1, 'seconds')
+    print('\nFinished Classification of {:0.0f} items in {:0.0f} seconds'.format(n_test,t2-t1) )
 
     # find accuracy of classification
     df_test['True_Category'] = y_test
