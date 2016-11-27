@@ -261,6 +261,20 @@ class BernoulliNBclassifier(BasicClassifier):
         BasicClassifier.__init__(self,get_features)
         self.ds_category_thresholds = pd.Series().rename('Thresholds')
 
+    def load_data(self, file_name):
+        store = pd.HDFStore(file_name)
+        self.df_feature_category_count = store.df_feature_category_count
+        self.ds_category_count = store.ds_category_count
+        self.ds_category_thresholds = store.ds_category_thresholds
+        store.close()
+
+    def save_data(self, file_name):
+        store = pd.HDFStore(file_name)
+        store['df_feature_category_count'] = self.df_feature_category_count
+        store['ds_category_count'] = self.ds_category_count
+        store['ds_category_thresholds'] = self.ds_category_thresholds
+        store.close()
+
     # set thresholds
     def set_thresholds(self, categories, thresholds):
         self.ds_category_thresholds[categories] = thresholds
