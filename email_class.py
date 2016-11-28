@@ -62,7 +62,11 @@ def prediction_accuracy(df_pred, y_test):
         return int( row['True_Category'] in row['Pred_Multi_Category'] )
     df_pred['Accuracy_One_Category'] = df_pred.apply(check_single_accuracy, axis=1)
     df_pred['Accuracy_Multi_Category'] = df_pred.apply(check_multi_accuracy, axis=1)
-    return df_pred
+    column_order = ['True_Category','Pred_One_Category','Accuracy_One_Category',
+                    'Pred_Multi_Category','Accuracy_Multi_Category']
+    print('\n')
+    print(df_pred[['Accuracy_One_Category','Accuracy_Multi_Category']].sum()/len(df_pred),'\n')
+    return df_pred[column_order]
 
 
 # walk through and list files in DataSet folder ###################################################
@@ -124,12 +128,8 @@ def train_test_on_datadir(cl, dir_name='20_newsgroup', samplefrac=0.2, randstate
 
     # find accuracy of prediction
     df_test = prediction_accuracy(df_prediction, y_test)
-    print('\n')
-    print(df_test[['Accuracy_One_Category','Accuracy_Multi_Category']].sum()/n_test,'\n')
     # return accuracy and predictions
-    column_order = ['True_Category','Pred_One_Category','Accuracy_One_Category',
-                    'Pred_Multi_Category','Accuracy_Multi_Category']
-    return df_test[column_order]
+    return df_test
 
 
 # train on sentences ##############################################################################
@@ -150,7 +150,7 @@ class CustomException(Exception):
 
 
 # function to extract list of features ############################################################
-def get_words(item):
+def get_words_emails(item):
     '''
     list all the words in a text
     '''
@@ -167,6 +167,20 @@ def get_words(item):
     words_count.index.name = 'Features'
     return words_count
 
+
+def get_words(item):
+    '''
+    list all the words in a text
+    '''
+    # splitter with non-alphabetic chars, with the exception of @
+    sub_item = re.sub('\W+\d+',' ', item)
+    regex_for_splitter = r'[\W]+'
+    splitter = re.compile(regex_for_splitter)
+    words = [s.lower() for s in re.split(splitter, sub_item) if len(s)>2]
+    # list unique words and assign count of 1 for each - as a series of word counts
+    words_count = pd.Series(1, index = list(set(words)))
+    words_count.index.name = 'Features'
+    return words_count
 
 # basic classifier ################################################################################
 class BasicClassifier:
