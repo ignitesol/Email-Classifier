@@ -33,7 +33,7 @@ def train_classifier(cl, X_train, y_train):
 
 
 # predict_categories ##############################################################################
-def predict_categories(cl, X_test):
+def predict_categories(cl, X_test, pthreshold=2):
     df_test = pd.DataFrame(index=X_test.index)
     df_test['Pred_One_Category'] = '-'
     df_test['Pred_Multi_Category'] = '-'
@@ -45,7 +45,7 @@ def predict_categories(cl, X_test):
                 txt = txt_file.read()
         except UnicodeDecodeError:
             continue
-        p_categories, top_categories = cl.classify(txt, threshold=2)
+        p_categories, top_categories = cl.classify(txt, threshold=pthreshold)
         df_test.set_value(rowidx, 'Pred_Multi_Category', top_categories)
         df_test.set_value(rowidx, 'Pred_One_Category', top_categories[0])
         # if not bool((i + 1) % 100):
@@ -118,7 +118,8 @@ def train_test_on_datadir(cl, dir_name='20_newsgroup', samplefrac=0.2, randstate
     n_jobs = 4 # number of parallel jobs
     parallelizer = Parallel(n_jobs)
     parts_X_test = np.array_split(X_test,n_jobs)
-    tasks_iterator = ( delayed(predict_categories)(cl, part_X) for part_X in  parts_X_test)
+    tasks_iterator = ( delayed(predict_categories)(cl, part_X, pthreshold=2)\
+                                                    for part_X in  parts_X_test)
     list_df_test = parallelizer(tasks_iterator)
     df_prediction = pd.concat(list_df_test,axis=0)
     # df_test = predict_categories(cl,X_test)
