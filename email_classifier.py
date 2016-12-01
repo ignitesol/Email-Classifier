@@ -163,7 +163,7 @@ def get_unique_tokens(item):
     # list all email ids
     regex_for_email_ids = r'[a-zA-Z0-9_.-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+'
     email_ids = re.findall(regex_for_email_ids, item)
-    # words += email_ids
+    words += email_ids
     # list unique words and assign count of 1 for each - as a series of word counts
     words_count = pd.Series(1, index = list(set(words)))
     words_count.index.name = 'Features'
