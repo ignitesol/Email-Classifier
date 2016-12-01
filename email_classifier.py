@@ -17,7 +17,7 @@ pd.set_option('display.max_rows',24)
 pd.set_option('expand_frame_repr',False)
 
 
-# train it ##########################################################
+# train it ########################################################################################
 def train_classifier(cl, X_train, y_train):
     for i, (rowidx, file_path) in enumerate(X_train.iteritems()):
         try:
@@ -309,8 +309,7 @@ class BernoulliNBclassifier(BasicClassifier):
         features_count = self.get_features(item)
         features = list(features_count.index)
         p_item_categories = self.feature_category_wghtprob(features, categories,
-                                                           self.feature_category_prob)\
-                                                        .product()
+                                                           self.feature_category_prob).product()
         return p_item_categories
 
     # p(category/item) - pseudo probability ignoring p(item)
