@@ -155,20 +155,15 @@ class CustomException(Exception):
 
 
 # function to extract list of features ############################################################
-def get_tokens(item):
-    '''
-    list all the words in a text
-    '''
+def get_unique_tokens(item):
+    # list all unique alphanumeric words
+    tokens = set(nltk.word_tokenize(item))
+    tokens_alnum = [s.lower() for s in tokens if s.isalpha()]
+    words = [s for s in tokens_alnum if s not in STOP_WORDS]
     # list all email ids
-    regex_for_email_ids = r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+'
+    regex_for_email_ids = r'[a-zA-Z0-9_.-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+'
     email_ids = re.findall(regex_for_email_ids, item)
-    # splitter with non-alphabetic chars, with the exception of @
-    # sub_item = re.sub('\W+\d+',' ', item)
-    # regex_for_splitter = r'[\W]+'
-    # splitter = re.compile(regex_for_splitter)
-    tokens = nltk.word_tokenize(item)
-    tokens_alnum = [s.lower() for s in tokens if s.isalnum()]
-    words = [s for s in tokens_alnum if s not in STOP_WORDS] + email_ids
+    # words += email_ids
     # list unique words and assign count of 1 for each - as a series of word counts
     words_count = pd.Series(1, index = list(set(words)))
     words_count.index.name = 'Features'
