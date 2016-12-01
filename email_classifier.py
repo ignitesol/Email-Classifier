@@ -11,12 +11,15 @@ from scipy import stats
 from sklearn.model_selection import train_test_split
 from joblib import Parallel, delayed
 import time
+import nltk
+
 
 pd.set_option('display.max_columns',5)
 pd.set_option('display.max_rows',24)
 pd.set_option('expand_frame_repr',False)
 
-#
+STOP_WORDS = set(nltk.corpus.stopwords.words('english'))
+
 
 # train it ########################################################################################
 def train_classifier(cl, X_train, y_train):
@@ -152,7 +155,7 @@ class CustomException(Exception):
 
 
 # function to extract list of features ############################################################
-def get_words_emails(item):
+def get_tokens(item):
     '''
     list all the words in a text
     '''
@@ -160,29 +163,17 @@ def get_words_emails(item):
     regex_for_email_ids = r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+'
     email_ids = re.findall(regex_for_email_ids, item)
     # splitter with non-alphabetic chars, with the exception of @
-    sub_item = re.sub('\W+\d+',' ', item)
-    regex_for_splitter = r'[\W]+'
-    splitter = re.compile(regex_for_splitter)
-    words = [s.lower() for s in re.split(splitter, sub_item) if len(s)>2] + email_ids
+    # sub_item = re.sub('\W+\d+',' ', item)
+    # regex_for_splitter = r'[\W]+'
+    # splitter = re.compile(regex_for_splitter)
+    tokens = nltk.word_tokenize(item)
+    tokens_alnum = [s.lower() for s in tokens if s.isalnum()]
+    words = [s for s in tokens_alnum if s not in STOP_WORDS] + email_ids
     # list unique words and assign count of 1 for each - as a series of word counts
     words_count = pd.Series(1, index = list(set(words)))
     words_count.index.name = 'Features'
     return words_count
 
-
-def get_words(item):
-    '''
-    list all the words in a text
-    '''
-    # splitter with non-alphabetic chars, with the exception of @
-    sub_item = re.sub('\W+\d+',' ', item)
-    regex_for_splitter = r'[\W]+'
-    splitter = re.compile(regex_for_splitter)
-    words = [s.lower() for s in re.split(splitter, sub_item) if len(s)>2]
-    # list unique words and assign count of 1 for each - as a series of word counts
-    words_count = pd.Series(1, index = list(set(words)))
-    words_count.index.name = 'Features'
-    return words_count
 
 # basic classifier ################################################################################
 class BasicClassifier:
@@ -198,8 +189,7 @@ class BasicClassifier:
     # increment the (feature,category) count
     def increment_feature_category_count(self, features_categories):
         self.df_feature_category_count = self.df_feature_category_count\
-                                            .add(features_categories, fill_value=0)\
-                                            .fillna(0)
+                                            .add(features_categories, fill_value=0).fillna(0)
         self.df_feature_category_count.index.name = 'Features'
         self.df_feature_category_count.columns.name = 'Categories'
 
@@ -233,8 +223,8 @@ class BasicClassifier:
             categories_inc = list(set(categories).intersection(set(self.ds_category_count.index)))
             categories_exc = list(set(categories).difference(set(self.ds_category_count.index)))
             df_count = pd.concat([self.df_feature_category_count.ix[features][categories_inc],
-                                  pd.DataFrame(0,index=features,columns=categories_exc)],axis=1)\
-                                .fillna(0)
+                                  pd.DataFrame(0,index=features,columns=categories_exc)],axis=1)
+            df_count.fillna(0, inplace = True)
             return df_count
 
 
