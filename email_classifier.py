@@ -38,7 +38,7 @@ def train_classifier(cl, X_train, y_train):
 
 
 # predict_categories ##############################################################################
-def predict_categories(cl, X_test, pthreshold=2):
+def predict_categories(cl, X_test):
     df_test = pd.DataFrame(index=X_test.index)
     df_test['Pred_One_Category'] = '-'
     df_test['Pred_Multi_Category'] = '-'
@@ -50,7 +50,7 @@ def predict_categories(cl, X_test, pthreshold=2):
                 txt = txt_file.read()
         except UnicodeDecodeError:
             continue
-        p_categories, top_categories = cl.classify(txt, threshold=pthreshold)
+        p_categories, top_categories = cl.classify(txt)
         df_test.set_value(rowidx, 'Pred_Multi_Category', top_categories)
         df_test.set_value(rowidx, 'Pred_One_Category', top_categories[0])
         # if not bool((i + 1) % 100):
@@ -123,8 +123,7 @@ def train_test_on_datadir(cl, dir_name='20_newsgroup', samplefrac=0.2, randstate
     n_jobs = 4 # number of parallel jobs
     parallelizer = Parallel(n_jobs)
     parts_X_test = np.array_split(X_test,n_jobs)
-    tasks_iterator = ( delayed(predict_categories)(cl, part_X, pthreshold=2)\
-                                                    for part_X in  parts_X_test)
+    tasks_iterator = ( delayed(predict_categories)(cl, part_X) for part_X in  parts_X_test)
     list_df_test = parallelizer(tasks_iterator)
     df_prediction = pd.concat(list_df_test,axis=0)
     # df_test = predict_categories(cl,X_test)
@@ -227,6 +226,20 @@ class BasicClassifier:
     def categories_list(self):
         return list(self.ds_category_count.index)
 
+    # load data
+    def load_data(self, file_name):
+        store = pd.HDFStore(file_name)
+        self.df_feature_category_count = store.df_feature_category_count
+        self.ds_category_count = store.ds_category_count
+        store.close()
+
+    # save data
+    def save_data(self, file_name):
+        store = pd.HDFStore(file_name)
+        store['df_feature_category_count'] = self.df_feature_category_count
+        store['ds_category_count'] = self.ds_category_count
+        store.close()
+
     # probability that a given feature will appear in an item belonging to given category
     # p(feature/category)
     def feature_category_prob(self, features, categories):
@@ -253,20 +266,6 @@ class BernoulliNBclassifier(BasicClassifier):
     def __init__(self,get_features):
         BasicClassifier.__init__(self,get_features)
         self.ds_category_thresholds = pd.Series().rename('Thresholds')
-
-    def load_data(self, file_name):
-        store = pd.HDFStore(file_name)
-        self.df_feature_category_count = store.df_feature_category_count
-        self.ds_category_count = store.ds_category_count
-        self.ds_category_thresholds = store.ds_category_thresholds
-        store.close()
-
-    def save_data(self, file_name):
-        store = pd.HDFStore(file_name)
-        store['df_feature_category_count'] = self.df_feature_category_count
-        store['ds_category_count'] = self.ds_category_count
-        store['ds_category_thresholds'] = self.ds_category_thresholds
-        store.close()
 
     # set thresholds
     def set_thresholds(self, categories, thresholds):
@@ -299,18 +298,69 @@ class BernoulliNBclassifier(BasicClassifier):
         return p_categories_item.fillna(0)
 
     # classify item
-    def classify(self, item, threshold=1):
+    def classify(self, item):
         categories = self.categories_list()
         if not categories:
             raise CustomException('No training data.')
         p_categories_item = self.p_category_given_item(item, categories)
-        categories_max10_p = p_categories_item.nlargest(5).rename('p_Category')
+        categories_max10_p = p_categories_item.nlargest(3).rename('p_Category')
         c_max = categories_max10_p.idxmax()
         p_max = categories_max10_p.iloc[0]
-        self.set_thresholds(c_max, threshold)
         p_threshold = p_max/self.get_threshold(c_max)
         best_categories = list(categories_max10_p[categories_max10_p >= p_threshold].index)
         return categories_max10_p, best_categories
 
 
 # Fisher Classifier ###############################################################################
+class FisherClassifier(BasicClassifier):
+    '''
+    Fisher Classifier
+    '''
+    def __init__(self,get_features):
+        BasicClassifier.__init__(self,get_features)
+        self.ds_category_thresholds = pd.Series().rename('Thresholds')
+
+    # set thresholds
+    def set_thresholds(self, categories, thresholds):
+        self.ds_category_thresholds[categories] = thresholds
+
+    # get thresholds
+    def get_threshold(self, category):
+        try:
+            return self.ds_category_thresholds[category]
+        except KeyError:
+            self.ds_category_thresholds[category] = 0
+            return self.ds_category_thresholds[category]
+
+    # probability an item with a particular feature belongs to given category
+    # p(category/feature)
+    def p_category_given_features(self, features, category):
+        all_categories = self.categories_list()
+        p_features_all_categories = self.feature_category_prob(features, all_categories)
+        p_features_given_category = p_features_all_categories[category]
+        sum_p_features_all_categories = p_features_all_categories.sum(axis=1)
+        p_category = p_features_given_category.apply(lambda x: x/sum_p_features_all_categories)
+        return p_category.fillna(0)
+
+    # probability that an item belongs to given category
+    # p(category/item) = product[ p(category/feature) ] for each feature in item
+    def fisher_prob(self, item, categories):
+        features_count = self.get_features(item)
+        features = list(features_count.index)
+        degf = 2*len(features)
+        p_categories = self.feature_category_wghtprob(features, categories,
+                                                           self.p_category_given_features).product()
+        fisher_scores = p_categories.map(lambda x: -2*np.log(x))
+        p_categories = fisher_scores.map(lambda x: stats.chi2.sf(x,degf))
+        return p_categories
+
+    # classify item
+    def classify(self, item):
+        all_categories = self.categories_list()
+        if not all_categories:
+            raise CustomException('No training data.')
+        p_categories_item = self.fisher_prob(item, all_categories)
+        categories_top_p = p_categories_item.nlargest(3).rename('p_Category')
+        threshold_top_p = self.ds_category_thresholds[categories_top_p.index]
+        best_categories = list(categories_top_p[categories_top_p >= threshold_top_p].index)
+        return categories_top_p, best_categories
