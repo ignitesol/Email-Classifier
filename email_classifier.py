@@ -162,9 +162,9 @@ def get_unique_tokens(item):
     tokens_alnum = [s.lower() for s in tokens if s.isalpha()]
     words = [s for s in tokens_alnum if s not in STOP_WORDS]
     # list all email ids
-    regex_for_email_ids = r'[a-zA-Z0-9_.-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+'
-    email_ids = re.findall(regex_for_email_ids, item)
-    words += email_ids
+    # regex_for_email_ids = r'[a-zA-Z0-9_.-]+@[a-zA-Z0-9_.-]+\.[a-zA-Z]{2,3}'
+    # email_ids = re.findall(regex_for_email_ids, item)
+    # words += email_ids
     # list unique words and assign count of 1 for each - as a series of word counts
     words_count = pd.Series(1, index = list(set(words)))
     words_count.index.name = 'Features'
@@ -313,4 +313,4 @@ class BernoulliNBclassifier(BasicClassifier):
         return categories_max10_p, best_categories
 
 
-###################################################################################################
+# Fisher Classifier ###############################################################################
