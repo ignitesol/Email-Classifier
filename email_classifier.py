@@ -361,6 +361,7 @@ class FisherClassifier(BasicClassifier):
             raise CustomException('No training data.')
         p_categories_item = self.fisher_prob(item, all_categories)
         categories_top_p = p_categories_item.nlargest(3).rename('p_Category')
-        threshold_top_p = self.ds_category_thresholds[categories_top_p.index]
+        thresholds = [self.get_threshold(t) for t in categories_top_p.index]
+        threshold_top_p = pd.Series(thresholds, index = categories_top_p.index)
         best_categories = list(categories_top_p[categories_top_p >= threshold_top_p].index)
         return categories_top_p, best_categories
