@@ -164,7 +164,7 @@ def get_unique_tokens(item):
     # list all email ids
     regex_for_email_ids = r'[a-zA-Z0-9_.-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+'
     email_ids = re.findall(regex_for_email_ids, item)
-    # words += email_ids
+    words += email_ids
     # list unique words and assign count of 1 for each - as a series of word counts
     words_count = pd.Series(1, index = list(set(words)))
     words_count.index.name = 'Features'
@@ -194,8 +194,6 @@ class BasicClassifier:
         try:
             self.ds_category_count[categories] += 1
         except (KeyError,ValueError):
-            # categories_in = list(set(categories).intersection(set(self.ds_category_count.index)))
-            # categories_ex = list(set(categories).difference(set(self.ds_category_count.index)))
             for cat in categories:
                 try:
                     self.ds_category_count[cat] += 1
@@ -213,16 +211,9 @@ class BasicClassifier:
 
     # number of times a feature occurred in a category - (feature,category) value
     def feature_category_count(self, features, categories):
-        try:
-            return self.df_feature_category_count.ix[features][categories]
-        except KeyError:
-            categories_inc = list(set(categories).intersection(set(self.ds_category_count.index)))
-            categories_exc = list(set(categories).difference(set(self.ds_category_count.index)))
-            df_count = pd.concat([self.df_feature_category_count.ix[features][categories_inc],
-                                  pd.DataFrame(0,index=features,columns=categories_exc)],axis=1)
-            df_count.fillna(0, inplace = True)
-            return df_count
-
+        df_count = self.df_feature_category_count.ix[features][categories]
+        df_count.fillna(0, inplace = True)
+        return df_count
 
     # total number of items in a category
     def category_count(self, categories):
