@@ -6,7 +6,7 @@ import pandas as pd
 import numpy as np
 import os
 from sklearn.model_selection import train_test_split
-from joblib import Parallel, delayed
+# from joblib import Parallel, delayed
 import time
 import email_classifier
 from importlib import reload
@@ -115,13 +115,13 @@ def train_test_on_datadir(cl, dir_name='20_newsgroup', n_multi=3,
     # test the classifier on testing dataset
     print('\nTesting ...')
     t1 = time.time()
-    n_jobs = 4 # number of parallel jobs
-    parallelizer = Parallel(n_jobs)
-    parts_X_test = np.array_split(X_test,n_jobs)
-    tasks_iterator = ( delayed(predict_categories)(cl,part_X,n_multi) for part_X in  parts_X_test)
-    list_df_test = parallelizer(tasks_iterator)
-    df_prediction = pd.concat(list_df_test,axis=0)
-    # df_prediction = predict_categories(cl, X_test, n_multi)
+    # n_jobs = 4 # number of parallel jobs
+    # parallelizer = Parallel(n_jobs)
+    # parts_X_test = np.array_split(X_test,n_jobs)
+    # tasks_iterator = ( delayed(predict_categories)(cl,part_X,n_multi) for part_X in  parts_X_test)
+    # list_df_test = parallelizer(tasks_iterator)
+    # df_prediction = pd.concat(list_df_test,axis=0)
+    df_prediction = predict_categories(cl, X_test, n_multi)
     t2 = time.time()
     print('\nFinished Classification of {:0.0f} items in {:0.0f} sec - {:0.0f} items per sec.'\
                 .format(n_test,t2-t1, n_test/(t2-t1)) )
