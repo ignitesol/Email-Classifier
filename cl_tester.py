@@ -144,9 +144,9 @@ def random_test(n_items, datadir='20_newsgroup', n_multi=2):
     cl_nb = email_classifier.BernoulliNBclassifier(email_classifier.get_unique_tokens)
     cl_ll.load_data(datadir + '.h5')
     cl_nb.load_data(datadir + '.h5')
-    print('\nBernoulli Naive Bayes Classifier : ')
+    print('\n\nBernoulli Naive Bayes Classifier : ')
     print(prediction_accuracy(predict_categories(cl_nb,items_paths,n_multi=n_multi),items_cats))
-    print('\nLog-Likelihood Classifier : ')
+    print('\n\nLog-Likelihood Classifier : ')
     print(prediction_accuracy(predict_categories(cl_ll,items_paths,n_multi=n_multi),items_cats))
 
 
