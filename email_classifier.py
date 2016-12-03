@@ -10,10 +10,6 @@ from scipy import stats
 import nltk
 
 
-pd.set_option('display.max_columns',5)
-pd.set_option('display.max_rows',24)
-pd.set_option('expand_frame_repr',False)
-
 # Globals #########################################################################################
 STOP_WORDS = set(nltk.corpus.stopwords.words('english'))
 

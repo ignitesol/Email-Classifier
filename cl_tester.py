@@ -11,11 +11,8 @@ import time
 import email_classifier
 from importlib import reload
 
-reload(email_classifier)
 
-pd.set_option('display.max_columns',5)
-pd.set_option('display.max_rows',24)
-pd.set_option('expand_frame_repr',False)
+reload(email_classifier)
 
 
 # train it ########################################################################################
