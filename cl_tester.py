@@ -104,7 +104,7 @@ def train_test_on_datadir(cl, dir_name='20_newsgroup', n_multi=3,
     train_classifier(cl, X_train, y_train)
     t2 = time.time()
     print('\nFinished Training on {:0.0f} items in in {:0.0f} sec - {:0.0f} items per sec.'\
-                .format(n_train, t2-t1, n_train/(t2-t1)) )
+          .format(n_train, t2-t1, n_train/(t2-t1)) )
     print('\nTotal number of items used:', cl.ds_category_count.sum())
     print('Number of items trained, by category:')
     print(cl.ds_category_count)
@@ -115,13 +115,14 @@ def train_test_on_datadir(cl, dir_name='20_newsgroup', n_multi=3,
     # n_jobs = 4 # number of parallel jobs
     # parallelizer = Parallel(n_jobs)
     # parts_X_test = np.array_split(X_test,n_jobs)
-    # tasks_iterator = ( delayed(predict_categories)(cl,part_X,n_multi) for part_X in  parts_X_test)
+    # tasks_iterator = (delayed(predict_categories)(cl,part_X,n_multi=n_multi)\
+    #                                               for part_X in  parts_X_test)
     # list_df_test = parallelizer(tasks_iterator)
     # df_prediction = pd.concat(list_df_test,axis=0)
     df_prediction = predict_categories(cl, X_test, n_multi)
     t2 = time.time()
     print('\nFinished Classification of {:0.0f} items in {:0.0f} sec - {:0.0f} items per sec.'\
-                .format(n_test,t2-t1, n_test/(t2-t1)) )
+          .format(n_test,t2-t1, n_test/(t2-t1)) )
 
     # find accuracy of prediction
     df_test = prediction_accuracy(df_prediction, y_test)
@@ -139,6 +140,8 @@ def random_test(n_items, datadir='20_newsgroup', n_multi=2):
     cl_nb = email_classifier.BernoulliNBclassifier(email_classifier.get_unique_tokens)
     cl_ll.load_data(datadir + '.h5')
     cl_nb.load_data(datadir + '.h5')
+    print('\n\nTest Sample :')
+    print(items)
     print('\n\nBernoulli Naive Bayes Classifier : ')
     print(prediction_accuracy(predict_categories(cl_nb,items_paths,n_multi=n_multi),items_cats))
     print('\n\nLog-Likelihood Classifier : ')
