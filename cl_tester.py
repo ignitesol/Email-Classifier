@@ -49,8 +49,6 @@ def predict_categories(cl, X_test, n_multi):
         top_categories = cl.classify(txt, n_multi)
         df_test.set_value(rowidx, 'Pred_Multi_Category', top_categories)
         df_test.set_value(rowidx, 'Pred_One_Category', top_categories[0])
-        # if not bool((i + 1) % 100):
-        #     print('Tested on', i + 1, 'files', flush=True)
     return df_test
 
 
@@ -123,7 +121,7 @@ def train_test_on_datadir(cl, dir_name='20_newsgroup', n_multi=3,
     tasks_iterator = ( delayed(predict_categories)(cl,part_X,n_multi) for part_X in  parts_X_test)
     list_df_test = parallelizer(tasks_iterator)
     df_prediction = pd.concat(list_df_test,axis=0)
-    # df_test = predict_categories(cl,X_test)
+    # df_prediction = predict_categories(cl, X_test, n_multi)
     t2 = time.time()
     print('\nFinished Classification of {:0.0f} items in {:0.0f} sec - {:0.0f} items per sec.'\
                 .format(n_test,t2-t1, n_test/(t2-t1)) )
@@ -150,14 +148,4 @@ def random_test(n_items, datadir='20_newsgroup', n_multi=2):
     print(prediction_accuracy(predict_categories(cl_ll,items_paths,n_multi=n_multi),items_cats))
 
 
-# train on sentences ##############################################################################
-def train_on_sentences(cl):
-    '''
-    train on example texts
-    '''
-    cl.train('Nobody owns the water.',['good'])
-    cl.train('the quick rabbit jumps fences',['good'])
-    cl.train('buy pharmaceuticals now',['bad'])
-    cl.train('make quick money at the online casino',['bad'])
-    cl.train('the quick brown fox jumps',['good'])
-
+###################################################################################################
