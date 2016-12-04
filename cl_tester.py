@@ -6,7 +6,6 @@ import pandas as pd
 import numpy as np
 import os
 from sklearn.model_selection import train_test_split
-# from joblib import Parallel, delayed
 import time
 import email_classifier
 from importlib import reload
@@ -60,7 +59,6 @@ def prediction_accuracy(df_pred, y_test):
     df_pred['Accuracy_Multi_Category'] = df_pred.apply(check_multi_accuracy, axis=1)
     column_order = ['True_Category','Pred_One_Category','Accuracy_One_Category',
                     'Pred_Multi_Category','Accuracy_Multi_Category']
-    print('\n')
     print(df_pred[['Accuracy_One_Category','Accuracy_Multi_Category']].sum()/len(df_pred),'\n')
     return df_pred[column_order]
 
@@ -112,13 +110,6 @@ def train_test_on_datadir(cl, dir_name='20_newsgroup', n_multi=3,
     # test the classifier on testing dataset
     print('\nTesting ...')
     t1 = time.time()
-    # n_jobs = 4 # number of parallel jobs
-    # parallelizer = Parallel(n_jobs)
-    # parts_X_test = np.array_split(X_test,n_jobs)
-    # tasks_iterator = (delayed(predict_categories)(cl,part_X,n_multi=n_multi)\
-    #                                               for part_X in  parts_X_test)
-    # list_df_test = parallelizer(tasks_iterator)
-    # df_prediction = pd.concat(list_df_test,axis=0)
     df_prediction = predict_categories(cl, X_test, n_multi)
     t2 = time.time()
     print('\nFinished Classification of {:0.0f} items in {:0.0f} sec - {:0.0f} items per sec.'\
@@ -140,12 +131,24 @@ def random_test(n_items, datadir='20_newsgroup', n_multi=2):
     cl_nb = email_classifier.BernoulliNBclassifier(email_classifier.get_unique_tokens)
     cl_ll.load_data(datadir + '.h5')
     cl_nb.load_data(datadir + '.h5')
-    print('\n\nTest Sample :')
+    print('\n\nTest Sample :\n')
     print(items)
     print('\n\nBernoulli Naive Bayes Classifier : ')
     print(prediction_accuracy(predict_categories(cl_nb,items_paths,n_multi=n_multi),items_cats))
     print('\n\nLog-Likelihood Classifier : ')
     print(prediction_accuracy(predict_categories(cl_ll,items_paths,n_multi=n_multi),items_cats))
+    return cl_ll
 
 
 ###################################################################################################
+
+# conn = MongoClient()
+# db = conn.db
+# collection = db.mycollection
+# query = {}
+# cursor = collection.find(query)
+# list(cursor)
+#
+# accounts = blaze.Symbol('accounts', 'var * {id: int64, amount: float64, name: string}')
+# deadbeats = accounts[accounts.amount <= 0].name
+# blaze.compute(deadbeats, collection)

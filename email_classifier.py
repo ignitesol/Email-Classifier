@@ -52,7 +52,7 @@ class BasicClassifier:
     basic classifier
     '''
     # init with feature_extraction_method and database db_name_table
-    def __init__(self, get_features, db_name_table=None):
+    def __init__(self, get_features):
         self.df_feature_category_count = pd.DataFrame() # number of features by category
         self.ds_category_count = pd.Series().rename('N_Items') # number of items in each category
         self.get_features = get_features # function to extract features
