@@ -151,6 +151,11 @@ class BasicClassifier:
     def save_data_to_hdf5(self):
         filename = str(self.user_id) + '.h5'
         store = pd.HDFStore(filename)
+        if store.keys():
+            store.remove('df_feature_category_count')
+            store.remove('ds_category_count')
+            store.remove('ds_category_ll_thresholds')
+            store.remove('ds_category_nb_thresholds')
         store['df_feature_category_count'] = self.df_feature_category_count
         store['ds_category_count'] = self.ds_category_count
         store['ds_category_ll_thresholds'] = self.ds_category_ll_thresholds
@@ -184,11 +189,6 @@ class BasicClassifier:
     def load_data_from_hdf5(self):
         filename = str(self.user_id) + '.h5'
         store = pd.HDFStore(filename)
-        if store.keys():
-            store.remove('df_feature_category_count')
-            store.remove('ds_category_count')
-            store.remove('ds_category_ll_thresholds')
-            store.remove('ds_category_nb_thresholds')
         self.df_feature_category_count = store['df_feature_category_count']
         self.ds_category_count = store['ds_category_count']
         self.ds_category_ll_thresholds = store['ds_category_ll_thresholds']
