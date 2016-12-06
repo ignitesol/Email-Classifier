@@ -4,6 +4,7 @@
 """
 import pandas as pd
 import numpy as np
+import json
 import os
 from sklearn.model_selection import train_test_split
 import time
@@ -70,16 +71,15 @@ def list_files_paths(dir_name):
     for dirpath,dirnames,filenames in os.walk(data_dir):
         df = pd.DataFrame(filenames,columns=['filename'])
         df['filepath'] = df['filename'].map(lambda fname: dirpath + '/' + fname)
-        df['category'] = dirpath.split(sep='/')[-1]
+        df['category'] = dirpath.split(sep='/')[-1].strip().replace('.','_').replace('-','_')
         df_list.append(df)
     df_items_categories = pd.concat(df_list, axis=0, ignore_index=True)
     return df_items_categories
 
 
 # train and test on datadir #######################################################################
-def train_test_on_datadir(cl, dir_name='20_newsgroup', n_multi=3,
-                          samplefrac=0.2, randstate=42, testsize=0.2):
-
+def train_test_on_datadir(cl, n_multi=3, samplefrac=0.2, randstate=42, testsize=0.2):
+    dir_name = cl.user_id
     print('\nTotal number of items in persistent training data:', cl.ds_category_count.sum())
     print('Number of items in persistent training data, by category:')
     print(cl.ds_category_count)
@@ -122,13 +122,16 @@ def train_test_on_datadir(cl, dir_name='20_newsgroup', n_multi=3,
 
 
 # test on N random items ##########################################################################
-def random_test(n_items, datadir='20_newsgroup', n_multi=2):
+def random_test(n_items, user_id='20_newsgroup', n_multi=2):
+    datadir = user_id
     df_items = list_files_paths(datadir)
     items = df_items.sample(n_items)
     items_paths = items.filepath
     items_cats = items.category
-    cl_ll = email_classifier.LogLikelihoodClassifier(email_classifier.get_unique_tokens)
-    cl_nb = email_classifier.BernoulliNBclassifier(email_classifier.get_unique_tokens)
+    cl_ll = email_classifier.LogLikelihoodClassifier(email_classifier.get_unique_tokens,
+                                                     user_id = user_id)
+    cl_nb = email_classifier.BernoulliNBclassifier(email_classifier.get_unique_tokens,
+                                                   user_id = user_id)
     cl_ll.load_data(datadir + '.h5')
     cl_nb.load_data(datadir + '.h5')
     print('\n\nTest Sample :\n')
@@ -141,14 +144,3 @@ def random_test(n_items, datadir='20_newsgroup', n_multi=2):
 
 
 ###################################################################################################
-
-# conn = MongoClient()
-# db = conn.db
-# collection = db.mycollection
-# query = {}
-# cursor = collection.find(query)
-# list(cursor)
-#
-# accounts = blaze.Symbol('accounts', 'var * {id: int64, amount: float64, name: string}')
-# deadbeats = accounts[accounts.amount <= 0].name
-# blaze.compute(deadbeats, collection)

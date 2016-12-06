@@ -5,7 +5,8 @@
 import re
 import pandas as pd
 import numpy as np
-import sqlalchemy
+import pymongo
+import json
 from scipy import stats
 import nltk
 
@@ -52,11 +53,13 @@ class BasicClassifier:
     basic classifier
     '''
     # init with feature_extraction_method and database db_name_table
-    def __init__(self, get_features):
+    def __init__(self, get_features, user_id):
         self.df_feature_category_count = pd.DataFrame() # number of features by category
         self.ds_category_count = pd.Series().rename('N_Items') # number of items in each category
         self.get_features = get_features # function to extract features
-        self.ds_category_thresholds = pd.Series().rename('Thresholds')
+        self.ds_category_ll_thresholds = pd.Series().rename('LL_Thresholds')
+        self.ds_category_nb_thresholds = pd.Series().rename('NB_Thresholds')
+        self.user_id = user_id
 
     # increment the (feature,category) count
     def increment_feature_category_count(self, features_categories):
@@ -103,18 +106,88 @@ class BasicClassifier:
     def categories_list(self):
         return list(self.ds_category_count.index)
 
-    # load data
-    def load_data(self, file_name):
-        store = pd.HDFStore(file_name)
-        self.df_feature_category_count = store.df_feature_category_count
-        self.ds_category_count = store.ds_category_count
-        store.close()
+    # save df_features_categories_count to db
+    def update_db_features_categories_count(self, collection, new_df):
+        #drop old data and insert new
+        query = {'user_id': self.user_id}
+        collection.delete_many(query)
+        collection.insert_many(json.loads(new_df.to_json(orient='records')))
+        ## bulk replace each row one by one, append if it doesnt exist
+        # bulk_replace = collection.initialize_unordered_bulk_op()
+        # for index, row in new_df.iterrows():
+        #     query = {'user_id': self.user_id,
+        #              'Features': row['Features']}
+        #     bulk_replace.find(query).upsert().replace_one(json.loads(row.to_json()))
+        # bulk_replace.execute()
 
-    # save data
-    def save_data(self, file_name):
-        store = pd.HDFStore(file_name)
+    # save data to mongodb
+    def save_data_to_mongodb(self, mongo_db_name):
+        query = {'user_id': self.user_id}
+        # save features_categories_count
+        df_fcc = self.df_feature_category_count.reset_index()
+        df_fcc['user_id'] = self.user_id
+        fcc_collection = mongo_db_name.feature_categories_count
+        self.update_db_features_categories_count(fcc_collection, df_fcc)
+        # save categories_count
+        ds_cc = json.loads(self.ds_category_count.to_json())
+        cc_collection = mongo_db_name.categories_count
+        cc_collection.replace_one(query,
+                                  {'user_id': self.user_id, 'ds_category_count': ds_cc},
+                                  upsert = True)
+        # save nb_category_thresholds
+        ds_cnbt = json.loads(self.ds_category_nb_thresholds.to_json())
+        cnbt_collection = mongo_db_name.category_nb_thresholds
+        cnbt_collection.replace_one(query,
+                                    {'user_id': self.user_id, 'ds_category_nb_thresholds': ds_cnbt},
+                                    upsert = True)
+        # save ll_category_thresholds
+        ds_cllt = json.loads(self.ds_category_ll_thresholds.to_json())
+        cllt_collection = mongo_db_name.category_ll_thresholds
+        cllt_collection.replace_one(query,
+                                    {'user_id': self.user_id, 'ds_category_ll_thresholds': ds_cllt},
+                                    upsert = True)
+
+    # save data to hdf5
+    def save_data_to_hdf5(self):
+        filename = str(self.user_id) + '.h5'
+        store = pd.HDFStore(filename)
         store['df_feature_category_count'] = self.df_feature_category_count
         store['ds_category_count'] = self.ds_category_count
+        store['ds_category_ll_thresholds'] = self.ds_category_ll_thresholds
+        store['ds_category_nb_thresholds'] = self.ds_category_nb_thresholds
+        store.close()
+
+    # load data from mongodb
+    def load_data_from_mongodb(self, mongo_db_name):
+        query = {'user_id': self.user_id}
+        # load features_categories_count
+        fcc_collection = mongo_db_name.feature_categories_count
+        df_fcc = pd.DataFrame(list(fcc_collection.find(query))).drop(['_id','user_id'],axis=1)
+        self.df_feature_category_count = df_fcc.set_index('Features',drop=True)
+        # load category_count
+        cc_collection = mongo_db_name.categories_count
+        ds_cc = pd.Series(cc_collection.find_one(query)['ds_category_count'])
+        ds_cc.index.name = 'Categories'
+        self.ds_category_count = ds_cc.rename('N_Items')
+        # load nb_category_thresholds
+        cnbt_collection = mongo_db_name.category_nb_thresholds
+        ds_cnbt = pd.Series(cnbt_collection.find_one(query)['ds_category_nb_thresholds'])
+        ds_cnbt.index.name = 'Categories'
+        self.ds_category_nb_thresholds = ds_cnbt.rename('NB_Thresholds')
+        # load ll_category_thresholds
+        cllt_collection = mongo_db_name.category_ll_thresholds
+        ds_cllt = pd.Series(cllt_collection.find_one(query)['ds_category_ll_thresholds'])
+        ds_cllt.index.name = 'Categories'
+        self.ds_category_ll_thresholds = ds_cllt.rename('LL_Thresholds')
+
+    # load data from hdf5
+    def load_data_from_hdf5(self):
+        filename = str(self.user_id) + '.h5'
+        store = pd.HDFStore(filename)
+        self.df_feature_category_count = store['df_feature_category_count']
+        self.ds_category_count = store['ds_category_count']
+        self.ds_category_ll_thresholds = store['ds_category_ll_thresholds']
+        self.ds_category_nb_thresholds = store['ds_category_nb_thresholds']
         store.close()
 
     # probability that a given feature will appear in an item belonging to given category
@@ -140,20 +213,20 @@ class BernoulliNBclassifier(BasicClassifier):
     '''
     bernoulli naive bayesian classifier
     '''
-    def __init__(self,get_features):
-        BasicClassifier.__init__(self,get_features)
+    def __init__(self,get_features, user_id):
+        BasicClassifier.__init__(self,get_features,user_id)
 
     # set thresholds
     def set_thresholds(self, categories, thresholds):
-        self.ds_category_thresholds[categories] = thresholds
+        self.ds_category_nb_thresholds[categories] = thresholds
 
     # get thresholds
     def get_threshold(self, category):
         try:
-            return self.ds_category_thresholds[category]
+            return self.ds_category_nb_thresholds[category]
         except KeyError:
-            self.ds_category_thresholds[category] = 2
-            return self.ds_category_thresholds[category]
+            self.ds_category_nb_thresholds[category] = 2
+            return self.ds_category_nb_thresholds[category]
 
     # prior probability of p(item/category)
     # probability that an item belongs to given category
@@ -179,11 +252,12 @@ class BernoulliNBclassifier(BasicClassifier):
         if not categories:
             raise CustomException('No training data.')
         p_categories_item = self.p_category_given_item(item, categories)
-        categories_max10_p = p_categories_item.nlargest(n_multi).rename('p_Category')
-        c_max = categories_max10_p.idxmax()
-        p_max = categories_max10_p.iloc[0]
-        p_threshold = p_max/self.get_threshold(c_max)
-        best_categories = list(categories_max10_p[categories_max10_p >= p_threshold].index)
+        categories_top_p = p_categories_item.nlargest(n_multi).rename('p_Category')
+        c_max = categories_top_p.idxmax()
+        p_max = categories_top_p.iloc[0]
+        thresholds = {c:self.get_threshold(c) for c in categories_top_p.index}
+        p_threshold = p_max/thresholds[c_max]
+        best_categories = list(categories_top_p[categories_top_p >= p_threshold].index)
         return best_categories
 
 
@@ -192,20 +266,20 @@ class LogLikelihoodClassifier(BasicClassifier):
     '''
     Log-Likelihood Classifier
     '''
-    def __init__(self,get_features):
-        BasicClassifier.__init__(self,get_features)
+    def __init__(self,get_features, user_id):
+        BasicClassifier.__init__(self,get_features,user_id)
 
     # set thresholds
     def set_thresholds(self, categories, thresholds):
-        self.ds_category_thresholds[categories] = thresholds
+        self.ds_category_ll_thresholds[categories] = thresholds
 
     # get thresholds
     def get_threshold(self, category):
         try:
-            return self.ds_category_thresholds[category]
+            return self.ds_category_ll_thresholds[category]
         except KeyError:
-            self.ds_category_thresholds[category] = 0
-            return self.ds_category_thresholds[category]
+            self.ds_category_ll_thresholds[category] = 0
+            return self.ds_category_ll_thresholds[category]
 
     # probability an item with a particular feature belongs to given category
     # p(category/feature)
