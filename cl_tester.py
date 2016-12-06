@@ -17,6 +17,7 @@ reload(email_classifier)
 
 # train it ########################################################################################
 def train_classifier(cl, X_train, y_train):
+    t=0
     for i, (rowidx, file_path) in enumerate(X_train.iteritems()):
         try:
             with open(file_path, 'r') as txt_file:
@@ -24,9 +25,12 @@ def train_classifier(cl, X_train, y_train):
         except UnicodeDecodeError:
             continue
         category = y_train[rowidx]
+        t1 = time.time()
         cl.train(txt, [category])
+        t2 = time.time()
+        t += t2-t1
         if not bool((i + 1) % 100):
-            print('Trained on', i + 1, 'files', flush=True)
+            print('Trained on {:0.0f} files @ {:0.3f} sec/file'.format(i + 1, t/(i+1)),flush=True)
     return
 
 
@@ -132,8 +136,8 @@ def random_test(n_items, user_id='20_newsgroup', n_multi=2):
                                                      user_id = user_id)
     cl_nb = email_classifier.BernoulliNBclassifier(email_classifier.get_unique_tokens,
                                                    user_id = user_id)
-    cl_ll.load_data(datadir + '.h5')
-    cl_nb.load_data(datadir + '.h5')
+    cl_ll.load_data_from_hdf5()
+    cl_nb.load_data_from_hdf5()
     print('\n\nTest Sample :\n')
     print(items)
     print('\n\nBernoulli Naive Bayes Classifier : ')

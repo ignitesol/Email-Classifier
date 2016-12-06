@@ -36,13 +36,13 @@ def get_unique_tokens(item):
     # list all unique alphanumeric words
     tokens = set(nltk.word_tokenize(item))
     tokens_alnum = [s.lower() for s in tokens if s.isalpha()]
-    words = [s for s in tokens_alnum if s not in STOP_WORDS]
+    words_nostop = [s for s in tokens_alnum if s not in STOP_WORDS]
     # list all email ids
     # regex_for_email_ids = r'[a-zA-Z0-9_.-]+@[a-zA-Z0-9_.-]+\.[a-zA-Z]{2,3}'
     # email_ids = re.findall(regex_for_email_ids, item)
     # words += email_ids
     # list unique words and assign count of 1 for each - as a series of word counts
-    words_count = pd.Series(1, index = list(set(words)))
+    words_count = pd.Series(1, index = set(words_nostop))
     words_count.index.name = 'Features'
     return words_count
 
@@ -219,13 +219,14 @@ class BernoulliNBclassifier(BasicClassifier):
     # set thresholds
     def set_thresholds(self, categories, thresholds):
         self.ds_category_nb_thresholds[categories] = thresholds
+        self.ds_category_nb_thresholds.index.name = 'Categories'
 
     # get thresholds
     def get_threshold(self, category):
         try:
             return self.ds_category_nb_thresholds[category]
         except KeyError:
-            self.ds_category_nb_thresholds[category] = 2
+            self.set_thresholds(category,2)
             return self.ds_category_nb_thresholds[category]
 
     # prior probability of p(item/category)
@@ -272,13 +273,14 @@ class LogLikelihoodClassifier(BasicClassifier):
     # set thresholds
     def set_thresholds(self, categories, thresholds):
         self.ds_category_ll_thresholds[categories] = thresholds
+        self.ds_category_ll_thresholds.index.name = 'Categories'
 
     # get thresholds
     def get_threshold(self, category):
         try:
             return self.ds_category_ll_thresholds[category]
         except KeyError:
-            self.ds_category_ll_thresholds[category] = 0
+            self.set_thresholds(category, 0)
             return self.ds_category_ll_thresholds[category]
 
     # probability an item with a particular feature belongs to given category
