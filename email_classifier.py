@@ -7,44 +7,8 @@ import pandas as pd
 import numpy as np
 import pymongo
 import json
-from scipy import stats
 import nltk
-
-
-# Globals #########################################################################################
-STOP_WORDS = set(nltk.corpus.stopwords.words('english'))
-
-
-# chi2sf function #################################################################################
-# currently using scipi.stats.chi2.sf
-def chi2sf(chi,df):
-    m = chi/2
-    sum = term = np.exp(-m)
-    for i in range(1,df//2):
-        term *= m/i
-        sum += term
-    return min(sum,1)
-
-
-# custom exception ################################################################################
-class CustomException(Exception):
-    pass
-
-
-# function to extract list of features ############################################################
-def get_unique_tokens(item):
-    # list all unique alphanumeric words
-    tokens = set(nltk.word_tokenize(item))
-    tokens_alnum = [s.lower() for s in tokens if s.isalpha()]
-    words_nostop = [s for s in tokens_alnum if s not in STOP_WORDS]
-    # list all email ids
-    # regex_for_email_ids = r'[a-zA-Z0-9_.-]+@[a-zA-Z0-9_.-]+\.[a-zA-Z]{2,3}'
-    # email_ids = re.findall(regex_for_email_ids, item)
-    # words += email_ids
-    # list unique words and assign count of 1 for each - as a series of word counts
-    words_count = pd.Series(1, index = set(words_nostop))
-    words_count.index.name = 'Features'
-    return words_count
+import scipy
 
 
 # basic classifier ################################################################################
@@ -53,13 +17,28 @@ class BasicClassifier:
     basic classifier
     '''
     # init with feature_extraction_method and database db_name_table
-    def __init__(self, get_features, user_id):
+    def __init__(self, user_id):
         self.df_feature_category_count = pd.DataFrame() # number of features by category
         self.ds_category_count = pd.Series().rename('N_Items') # number of items in each category
-        self.get_features = get_features # function to extract features
         self.ds_category_ll_thresholds = pd.Series().rename('LL_Thresholds')
         self.ds_category_nb_thresholds = pd.Series().rename('NB_Thresholds')
         self.user_id = user_id
+        self.STOP_WORDS = set(nltk.corpus.stopwords.words('english'))
+
+    # function to extract list of features ############################################################
+    def get_features(self, item):
+        # list all unique alphanumeric words
+        tokens = set(nltk.word_tokenize(item))
+        tokens_alnum = [s.lower() for s in tokens if s.isalpha()]
+        words_nostop = [s for s in tokens_alnum if s not in self.STOP_WORDS]
+        # list all email ids
+        # regex_for_email_ids = r'[a-zA-Z0-9_.-]+@[a-zA-Z0-9_.-]+\.[a-zA-Z]{2,3}'
+        # email_ids = re.findall(regex_for_email_ids, item)
+        # words += email_ids
+        # list unique words and assign count of 1 for each - as a series of word counts
+        words_count = pd.Series(1, index=set(words_nostop))
+        words_count.index.name = 'Features'
+        return words_count
 
     # increment the (feature,category) count
     def increment_feature_category_count(self, features_categories):
@@ -208,7 +187,7 @@ class BasicClassifier:
         init_prob = pd.Series(init_prob, index=features)
         features_prob = pfunc(features, categories)
         features_count = self.df_feature_category_count.ix[features].sum(axis=1)
-        prob = features_prob.apply(lambda x: (x*features_count + init_weight*init_prob)\
+        prob = features_prob.apply(lambda x:(x*features_count+init_weight*init_prob)\
                                             /(init_weight+features_count))
         return prob.fillna(0)
 
@@ -218,8 +197,8 @@ class BernoulliNBclassifier(BasicClassifier):
     '''
     bernoulli naive bayesian classifier
     '''
-    def __init__(self,get_features, user_id):
-        BasicClassifier.__init__(self,get_features,user_id)
+    def __init__(self, user_id):
+        BasicClassifier.__init__(self, user_id)
 
     # set thresholds
     def set_thresholds(self, categories, thresholds):
@@ -253,10 +232,8 @@ class BernoulliNBclassifier(BasicClassifier):
         return p_categories_item.fillna(0)
 
     # classify item
-    def classify(self, item, n_multi):
+    def classify(self, item, n_multi, default='Default_Category'):
         categories = self.categories_list()
-        if not categories:
-            raise CustomException('No training data.')
         p_categories_item = self.p_category_given_item(item, categories)
         categories_top_p = p_categories_item.nlargest(n_multi).rename('p_Category')
         c_max = categories_top_p.idxmax()
@@ -264,7 +241,8 @@ class BernoulliNBclassifier(BasicClassifier):
         thresholds = {c:self.get_threshold(c) for c in categories_top_p.index}
         p_threshold = p_max/thresholds[c_max]
         best_categories = list(categories_top_p[categories_top_p >= p_threshold].index)
-        return best_categories
+        best_categories = best_categories + [default]
+        return best_categories[:n_multi]
 
 
 # Log-Likelihood Classifier #######################################################################
@@ -272,8 +250,8 @@ class LogLikelihoodClassifier(BasicClassifier):
     '''
     Log-Likelihood Classifier
     '''
-    def __init__(self,get_features, user_id):
-        BasicClassifier.__init__(self,get_features,user_id)
+    def __init__(self, user_id):
+        BasicClassifier.__init__(self, user_id)
 
     # set thresholds
     def set_thresholds(self, categories, thresholds):
@@ -307,20 +285,19 @@ class LogLikelihoodClassifier(BasicClassifier):
         p_categories = self.feature_category_wghtprob(features, categories,
                                                       self.p_category_given_features).product()
         log_likelihood = -2*np.log(p_categories)
-        chi2sf_score = log_likelihood.map(lambda x: stats.chi2.sf(x,degf))
+        chi2sf_score = log_likelihood.map(lambda x : scipy.stats.chi2.sf(x,degf))
         return chi2sf_score
 
     # classify item
-    def classify(self, item, n_multi):
+    def classify(self, item, n_multi, default='Default_Category'):
         all_categories = self.categories_list()
-        if not all_categories:
-            raise CustomException('No training data.')
         p_categories_item = self.log_likelihood_score(item, all_categories)
         categories_top_p = p_categories_item.nlargest(n_multi).rename('p_Category')
         thresholds = [self.get_threshold(t) for t in categories_top_p.index]
         threshold_top_p = pd.Series(thresholds, index = categories_top_p.index)
         best_categories = list(categories_top_p[categories_top_p >= threshold_top_p].index)
-        return best_categories
+        best_categories = best_categories + [default]
+        return best_categories[:n_multi]
 
 
 ###################################################################################################

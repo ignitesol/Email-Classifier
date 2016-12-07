@@ -50,6 +50,11 @@ def predict_categories(cl, X_test, n_multi):
         top_categories = cl.classify(txt, n_multi)
         df_test.set_value(rowidx, 'Pred_Multi_Category', top_categories)
         df_test.set_value(rowidx, 'Pred_One_Category', top_categories[0])
+        # try:
+        #     df_test.set_value(rowidx, 'Pred_One_Category', top_categories[0])
+        # except IndexError:
+        #     df_test.set_value(rowidx, 'Pred_One_Category', '-')
+        #     print('Error with' + file_path)
     return df_test
 
 
@@ -132,10 +137,8 @@ def random_test(n_items, user_id='20_newsgroup', n_multi=2):
     items = df_items.sample(n_items)
     items_paths = items.filepath
     items_cats = items.category
-    cl_ll = email_classifier.LogLikelihoodClassifier(email_classifier.get_unique_tokens,
-                                                     user_id = user_id)
-    cl_nb = email_classifier.BernoulliNBclassifier(email_classifier.get_unique_tokens,
-                                                   user_id = user_id)
+    cl_ll = email_classifier.LogLikelihoodClassifier(user_id = user_id)
+    cl_nb = email_classifier.BernoulliNBclassifier(user_id = user_id)
     cl_ll.load_data_from_hdf5()
     cl_nb.load_data_from_hdf5()
     print('\n\nTest Sample :\n')
