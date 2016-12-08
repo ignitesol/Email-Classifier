@@ -6,10 +6,13 @@ import pandas as pd
 import numpy as np
 import json
 import os
+import shutil
 from sklearn.model_selection import train_test_split
 import time
 import email_classifier
+import joblib
 from importlib import reload
+import random
 
 
 reload(email_classifier)
@@ -138,16 +141,58 @@ def random_test(n_items, user_id='20_newsgroup', n_multi=2):
     items_paths = items.filepath
     items_cats = items.category
     cl_ll = email_classifier.LogLikelihoodClassifier(user_id = user_id)
-    cl_nb = email_classifier.BernoulliNBclassifier(user_id = user_id)
+    # cl_nb = email_classifier.BernoulliNBclassifier(user_id = user_id)
     cl_ll.load_data_from_hdf5()
-    cl_nb.load_data_from_hdf5()
+    # cl_nb.load_data_from_hdf5()
     print('\n\nTest Sample :\n')
     print(items)
-    print('\n\nBernoulli Naive Bayes Classifier : ')
-    print(prediction_accuracy(predict_categories(cl_nb,items_paths,n_multi=n_multi),items_cats))
+    # print('\n\nBernoulli Naive Bayes Classifier : ')
+    # print(prediction_accuracy(predict_categories(cl_nb,items_paths,n_multi=n_multi),items_cats))
     print('\n\nLog-Likelihood Classifier : ')
     print(prediction_accuracy(predict_categories(cl_ll,items_paths,n_multi=n_multi),items_cats))
     return cl_ll
 
 
 ###################################################################################################
+def user_session(cl, n_ops, items_list):
+    for i_op in range(n_ops):
+        item_details = items_list.sample(1)
+        item = open(item_details.filepath.values[0],'r').read()
+        category = item_details.category.values[0]
+        output = random.choice([cl.train(item,[category]), cl.classify(item,n_multi=2)])
+        if not output:
+            print('UserID\t', cl.user_id,', Training on\t\t\t',item_details.filepath.values[0])
+        else:
+            print('UserID\t', cl.user_id,', Classification of\t',item_details.filepath.values[0])
+    return
+
+
+###################################################################################################
+def load_test_hdf5db(n_users, n_ops, id_suffix = '20_newsgroup'):
+    items_list = list_files_paths(id_suffix)
+    hdf_db = './hdf5_db/'
+    print('\n\nChecking and replicating main_db if a user_db doesnt exist ... ',end='')
+    users_dict = {id+1:{'user_id':id_suffix + '_' + str(id+1),
+                        'hdf_db':hdf_db+id_suffix+'_'+str(id+1)+'.h5'} for id in range(n_users)}
+    for id in users_dict.keys():
+        if os.path.isfile(users_dict[id]['hdf_db']):
+            continue
+        else:
+            shutil.copyfile(hdf_db+id_suffix+'.h5', users_dict[id]['hdf_db'])
+    print('done.')
+    # initialising classes for each
+    print('\nCreating instances of LogLikelihoodClassifier for each user ... ', end='')
+    cl_list = []
+    for id in users_dict.keys():
+        cl_ll = email_classifier.LogLikelihoodClassifier(user_id = users_dict[id]['user_id'])
+        users_dict[id]['cl'] = cl_ll
+        cl_ll.load_data_from_hdf5()
+        cl_list.append(cl_ll)
+    print('done.')
+    # using joblib to simulate parallel training and classification
+    njobs = 4
+    parallelizer = joblib.Parallel(n_jobs = njobs)
+    task_iterator = (joblib.delayed(user_session)(cl,n_ops,items_list) for cl in cl_list)
+    output_list = parallelizer(task_iterator)
+    return users_dict
+

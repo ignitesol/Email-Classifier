@@ -9,6 +9,7 @@ import pymongo
 import json
 import nltk
 import scipy
+import threading
 
 
 # basic classifier ################################################################################
@@ -24,11 +25,15 @@ class BasicClassifier:
         self.ds_category_nb_thresholds = pd.Series().rename('NB_Thresholds')
         self.user_id = user_id
         self.STOP_WORDS = set(nltk.corpus.stopwords.words('english'))
+        self.hdf5_db = './hdf5_db/'
+        self.mongo_db = 'email_classifier_db'
+        self.lock = threading.RLock()
 
     # function to extract list of features ############################################################
-    def get_features(self, item):
-        # list all unique alphanumeric words
+    def get_features(self, raw_txt):
+        item = '\n'.join(raw_txt.split('\n')[1:])
         tokens = set(nltk.word_tokenize(item))
+        # list all unique alphanumeric words
         tokens_alnum = [s.lower() for s in tokens if s.isalpha()]
         words_nostop = [s for s in tokens_alnum if s not in self.STOP_WORDS]
         # list all email ids
@@ -61,11 +66,12 @@ class BasicClassifier:
 
     # train classifier given an item and category
     def train(self, item, categories):
-        features_count = self.get_features(item)
-        features_categories = pd.concat([features_count]*len(categories), axis=1)
-        features_categories.columns = categories
-        self.increment_feature_category_count(features_categories)
-        self.increment_category_count(categories)
+        with self.lock:
+            features_count = self.get_features(item)
+            features_categories = pd.concat([features_count]*len(categories), axis=1)
+            features_categories.columns = categories
+            self.increment_feature_category_count(features_categories)
+            self.increment_category_count(categories)
 
     # number of times a feature occurred in a category - (feature,category) value
     def feature_category_count(self, features, categories):
@@ -128,7 +134,7 @@ class BasicClassifier:
 
     # save data to hdf5
     def save_data_to_hdf5(self):
-        filename = str(self.user_id) + '.h5'
+        filename = self.hdf5_db + str(self.user_id) + '.h5'
         store = pd.HDFStore(filename)
         if store.keys():
             store.remove('df_feature_category_count')
@@ -166,7 +172,7 @@ class BasicClassifier:
 
     # load data from hdf5
     def load_data_from_hdf5(self):
-        filename = str(self.user_id) + '.h5'
+        filename = self.hdf5_db + str(self.user_id) + '.h5'
         store = pd.HDFStore(filename)
         self.df_feature_category_count = store['df_feature_category_count']
         self.ds_category_count = store['ds_category_count']
@@ -202,15 +208,17 @@ class BernoulliNBclassifier(BasicClassifier):
 
     # set thresholds
     def set_thresholds(self, categories, thresholds):
-        self.ds_category_nb_thresholds[categories] = thresholds
-        self.ds_category_nb_thresholds.index.name = 'Categories'
+        with self.lock:
+            self.ds_category_nb_thresholds[categories] = thresholds
+            self.ds_category_nb_thresholds.index.name = 'Categories'
 
     # get thresholds
     def get_threshold(self, category):
         try:
             return self.ds_category_nb_thresholds[category]
         except KeyError:
-            self.set_thresholds(category,2)
+            with self.lock:
+                self.set_thresholds(category,2)
             return self.ds_category_nb_thresholds[category]
 
     # prior probability of p(item/category)
@@ -255,15 +263,17 @@ class LogLikelihoodClassifier(BasicClassifier):
 
     # set thresholds
     def set_thresholds(self, categories, thresholds):
-        self.ds_category_ll_thresholds[categories] = thresholds
-        self.ds_category_ll_thresholds.index.name = 'Categories'
+        with self.lock:
+            self.ds_category_ll_thresholds[categories] = thresholds
+            self.ds_category_ll_thresholds.index.name = 'Categories'
 
     # get thresholds
     def get_threshold(self, category):
         try:
             return self.ds_category_ll_thresholds[category]
         except KeyError:
-            self.set_thresholds(category, 0)
+            with self.lock:
+                self.set_thresholds(category, 0)
             return self.ds_category_ll_thresholds[category]
 
     # probability an item with a particular feature belongs to given category
