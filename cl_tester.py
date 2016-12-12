@@ -156,14 +156,20 @@ def random_test(n_items, user_id='20_newsgroup', n_multi=2):
 ###################################################################################################
 def user_session(cl, n_ops, items_list):
     for i_op in range(n_ops):
-        item_details = items_list.sample(1)
-        item = open(item_details.filepath.values[0],'r').read()
+        item = None
+        while item is None:
+            try:
+                item_details = items_list.sample(random_state=random.randint(0,100000))
+                item = open(item_details.filepath.values[0],'r').read()
+            except UnicodeDecodeError:
+                continue
         category = item_details.category.values[0]
-        output = random.choice([cl.train(item,[category]), cl.classify(item,n_multi=2)])
-        if not output:
-            print('UserID\t', cl.user_id,', Training on\t\t\t',item_details.filepath.values[0])
+        if random.randint(0,1):
+            cl.train(item,[category])
+            print('UserID\t', cl.user_id, '\t- Training on\t\t', item_details.filepath.values[0])
         else:
-            print('UserID\t', cl.user_id,', Classification of\t',item_details.filepath.values[0])
+            cl.classify(item,n_multi=2)
+            print('UserID\t', cl.user_id,'\t- Classification of\t',item_details.filepath.values[0])
     return
 
 
@@ -191,7 +197,7 @@ def load_test_hdf5db(n_users, n_ops, id_suffix = '20_newsgroup'):
     print('done.')
     # using joblib to simulate parallel training and classification
     njobs = 4
-    parallelizer = joblib.Parallel(n_jobs = njobs)
+    parallelizer = joblib.Parallel(n_jobs = njobs) # backend='threading')
     task_iterator = (joblib.delayed(user_session)(cl,n_ops,items_list) for cl in cl_list)
     output_list = parallelizer(task_iterator)
     return users_dict

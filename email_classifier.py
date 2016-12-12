@@ -27,7 +27,7 @@ class BasicClassifier:
         self.STOP_WORDS = set(nltk.corpus.stopwords.words('english'))
         self.hdf5_db = './hdf5_db/'
         self.mongo_db = 'email_classifier_db'
-        self.lock = threading.RLock()
+        # self.lock = threading.RLock()
 
     # function to extract list of features ############################################################
     def get_features(self, raw_txt):
@@ -66,12 +66,12 @@ class BasicClassifier:
 
     # train classifier given an item and category
     def train(self, item, categories):
-        with self.lock:
-            features_count = self.get_features(item)
-            features_categories = pd.concat([features_count]*len(categories), axis=1)
-            features_categories.columns = categories
-            self.increment_feature_category_count(features_categories)
-            self.increment_category_count(categories)
+        # with self.lock:
+        features_count = self.get_features(item)
+        features_categories = pd.concat([features_count]*len(categories), axis=1)
+        features_categories.columns = categories
+        self.increment_feature_category_count(features_categories)
+        self.increment_category_count(categories)
 
     # number of times a feature occurred in a category - (feature,category) value
     def feature_category_count(self, features, categories):
@@ -208,17 +208,17 @@ class BernoulliNBclassifier(BasicClassifier):
 
     # set thresholds
     def set_thresholds(self, categories, thresholds):
-        with self.lock:
-            self.ds_category_nb_thresholds[categories] = thresholds
-            self.ds_category_nb_thresholds.index.name = 'Categories'
+        # with self.lock:
+        self.ds_category_nb_thresholds[categories] = thresholds
+        self.ds_category_nb_thresholds.index.name = 'Categories'
 
     # get thresholds
     def get_threshold(self, category):
         try:
             return self.ds_category_nb_thresholds[category]
         except KeyError:
-            with self.lock:
-                self.set_thresholds(category,2)
+            # with self.lock:
+            self.set_thresholds(category,2)
             return self.ds_category_nb_thresholds[category]
 
     # prior probability of p(item/category)
@@ -263,17 +263,17 @@ class LogLikelihoodClassifier(BasicClassifier):
 
     # set thresholds
     def set_thresholds(self, categories, thresholds):
-        with self.lock:
-            self.ds_category_ll_thresholds[categories] = thresholds
-            self.ds_category_ll_thresholds.index.name = 'Categories'
+        # with self.lock:
+        self.ds_category_ll_thresholds[categories] = thresholds
+        self.ds_category_ll_thresholds.index.name = 'Categories'
 
     # get thresholds
     def get_threshold(self, category):
         try:
             return self.ds_category_ll_thresholds[category]
         except KeyError:
-            with self.lock:
-                self.set_thresholds(category, 0)
+            # with self.lock:
+            self.set_thresholds(category, 0)
             return self.ds_category_ll_thresholds[category]
 
     # probability an item with a particular feature belongs to given category
