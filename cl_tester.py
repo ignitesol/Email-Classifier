@@ -170,7 +170,7 @@ def user_session(cl, n_ops, items_list):
         else:
             cl.classify(item,n_multi=2)
             print('UserID\t', cl.user_id,'\t- Classification of\t',item_details.filepath.values[0])
-    return
+    return cl
 
 
 ###################################################################################################
@@ -199,6 +199,8 @@ def load_test_hdf5db(n_users, n_ops, id_suffix = '20_newsgroup'):
     njobs = 4
     parallelizer = joblib.Parallel(n_jobs = njobs) # backend='threading')
     task_iterator = (joblib.delayed(user_session)(cl,n_ops,items_list) for cl in cl_list)
-    output_list = parallelizer(task_iterator)
+    cl_list = parallelizer(task_iterator)
+    for cl in cl_list:
+        users_dict[int(cl.user_id.split('_')[-1])]['cl'] = cl
     return users_dict
 
