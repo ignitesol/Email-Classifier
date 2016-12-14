@@ -154,7 +154,16 @@ def random_test(n_items, user_id='20_newsgroup', n_multi=2):
 
 
 ###################################################################################################
-def user_session(cl, n_ops, items_list):
+
+
+items_list = list_files_paths('20_newsgroup')
+users_dict = None
+
+
+###################################################################################################
+def user_session(uid, n_ops):
+    global users_dict
+    cl = users_dict[uid]['cl']
     for i_op in range(n_ops):
         item = None
         while item is None:
@@ -174,12 +183,12 @@ def user_session(cl, n_ops, items_list):
 
 
 ###################################################################################################
-def load_test_hdf5db(n_users, n_ops, id_suffix = '20_newsgroup'):
-    items_list = list_files_paths(id_suffix)
+def load_test_hdf5db(n_users, n_ops, id_suffix='20_newsgroup'):
+    global users_dict
     hdf_db = './hdf5_db/'
     print('\n\nChecking and replicating main_db if a user_db doesnt exist ... ',end='')
-    users_dict = {id+1:{'user_id':id_suffix + '_' + str(id+1),
-                        'hdf_db':hdf_db+id_suffix+'_'+str(id+1)+'.h5'} for id in range(n_users)}
+    users_dict = {uid+1:{'user_id':id_suffix + '_' + str(uid+1),
+                        'hdf_db':hdf_db+id_suffix+'_'+str(uid+1)+'.h5'} for uid in range(n_users)}
     for id in users_dict.keys():
         if os.path.isfile(users_dict[id]['hdf_db']):
             continue
@@ -188,19 +197,18 @@ def load_test_hdf5db(n_users, n_ops, id_suffix = '20_newsgroup'):
     print('done.')
     # initialising classes for each
     print('\nCreating instances of LogLikelihoodClassifier for each user ... ', end='')
-    cl_list = []
-    for id in users_dict.keys():
-        cl_ll = email_classifier.LogLikelihoodClassifier(user_id = users_dict[id]['user_id'])
-        users_dict[id]['cl'] = cl_ll
+    uids = users_dict.keys()
+    for uid in uids:
+        cl_ll = email_classifier.LogLikelihoodClassifier(user_id = users_dict[uid]['user_id'])
+        users_dict[uid]['cl'] = cl_ll
         cl_ll.load_data_from_hdf5()
-        cl_list.append(cl_ll)
     print('done.')
     # using joblib to simulate parallel training and classification
-    njobs = 4
-    parallelizer = joblib.Parallel(n_jobs = njobs) # backend='threading')
-    task_iterator = (joblib.delayed(user_session)(cl,n_ops,items_list) for cl in cl_list)
+    njobs = 10
+    parallelizer = joblib.Parallel(n_jobs=njobs) # backend='threading')
+    task_iterator = (joblib.delayed(user_session)(uid, n_ops) for uid in uids)
     cl_list = parallelizer(task_iterator)
     for cl in cl_list:
         users_dict[int(cl.user_id.split('_')[-1])]['cl'] = cl
-    return users_dict
+    return
 
