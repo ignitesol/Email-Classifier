@@ -143,7 +143,7 @@ def random_test(n_items, user_id='20_newsgroup', n_multi=2):
     items_cats = items.category
     cl_ll = email_classifier.LogLikelihoodClassifier(user_id = user_id)
     # cl_nb = email_classifier.BernoulliNBclassifier(user_id = user_id)
-    cl_ll.load_data_from_hdf5()
+    cl_ll.load_data_from_sqlite()
     # cl_nb.load_data_from_hdf5()
     print('\n\nTest Sample :\n')
     print(items)
@@ -164,7 +164,9 @@ users_dict = None
 ###################################################################################################
 def user_session(uid, n_ops):
     global users_dict
-    cl = users_dict[uid]['cl']
+    cl = email_classifier.LogLikelihoodClassifier(user_id = users_dict[uid]['user_id'])
+    cl.load_data_from_sqlite()
+    print('UserID\t', cl.user_id, '\tLoading training data\t',cl.ds_category_count.sum(),'items')
     for i_op in range(n_ops):
         item = None
         while item is None:
@@ -176,34 +178,29 @@ def user_session(uid, n_ops):
         category = item_details.category.values[0]
         if random.randint(0,1):
             cl.train(item,[category])
-            print('UserID\t', cl.user_id, '\t- Training on\t\t', item_details.filepath.values[0])
+            print('UserID\t', cl.user_id, '\tTraining on\t\t', item_details.filepath.values[0])
         else:
             cl.classify(item,n_multi=2)
-            print('UserID\t', cl.user_id,'\t- Classification of\t',item_details.filepath.values[0])
+            print('UserID\t', cl.user_id,'\tClassification of\t',item_details.filepath.values[0])
+    print('UserID\t', cl.user_id, '\tSaving training data\t',cl.ds_category_count.sum(),'items')
+    cl.save_data_to_sqlite()
     return cl
 
 
 ###################################################################################################
-def load_test_hdf5db(n_users, n_ops, id_suffix='20_newsgroup'):
+def load_test_sqlite(n_users, n_ops, id_suffix='20_newsgroup'):
     global users_dict
-    hdf_db = './hdf5_db/'
+    db_dir = './sqlite_db/'
     print('\n\nChecking and replicating main_db if a user_db doesnt exist ... ',end='')
     users_dict = {uid+1:{'user_id':id_suffix + '_' + str(uid+1),
-                        'hdf_db':hdf_db+id_suffix+'_'+str(uid+1)+'.h5'} for uid in range(n_users)}
-    for id in users_dict.keys():
-        if os.path.isfile(users_dict[id]['hdf_db']):
-            continue
-        else:
-            shutil.copyfile(hdf_db+id_suffix+'.h5', users_dict[id]['hdf_db'])
-    print('done.')
-    # initialising classes for each
-    print('\nCreating instances of LogLikelihoodClassifier for each user ... ', end='')
+                        'db':db_dir+id_suffix+'_'+str(uid+1)+'.sqlite'} for uid in range(n_users)}
     uids = users_dict.keys()
     for uid in uids:
-        cl_ll = email_classifier.LogLikelihoodClassifier(user_id = users_dict[uid]['user_id'])
-        users_dict[uid]['cl'] = cl_ll
-        cl_ll.load_data_from_hdf5()
-    print('done.')
+        if os.path.isfile(users_dict[uid]['db']):
+            continue
+        else:
+            shutil.copyfile(db_dir+id_suffix+'.sqlite', users_dict[uid]['db'])
+    print('done.\n\n')
     # using joblib to simulate parallel training and classification
     njobs = 10
     parallelizer = joblib.Parallel(n_jobs=njobs) # backend='threading')

@@ -6,11 +6,12 @@
 import re
 import pandas as pd
 import numpy as np
-import pymongo
 import json
 import nltk
 import scipy
 import threading
+import pymongo
+import sqlite3
 
 
 # basic classifier ################################################################################
@@ -20,17 +21,25 @@ class BasicClassifier:
     '''
     # init with feature_extraction_method and database db_name_table
     def __init__(self, user_id):
+        #
         self.df_feature_category_count = pd.DataFrame() # number of features by category
         self.ds_category_count = pd.Series().rename('N_Items') # number of items in each category
         self.ds_category_ll_thresholds = pd.Series().rename('LL_Thresholds')
         self.ds_category_nb_thresholds = pd.Series().rename('NB_Thresholds')
         self.user_id = user_id
+        #
         self.STOP_WORDS = set(nltk.corpus.stopwords.words('english'))
         self.hdf5_db = './hdf5_db/'
+        self.sqlite_db = './sqlite_db/'
         self.mongo_db = 'email_classifier_db'
+        #
+        self.df_feature_category_count.index.name = 'Features'
+        self.ds_category_count.index.name = 'Categories'
+        self.ds_category_ll_thresholds.index.name = 'Categories'
+        self.ds_category_nb_thresholds.index.name = 'Categories'
         # self.lock = threading.RLock()
 
-    # function to extract list of features ############################################################
+    # function to extract list of features ########################################################
     def get_features(self, raw_txt):
         item = '\n'.join(raw_txt.split('\n')[1:])
         tokens = set(nltk.word_tokenize(item))
@@ -50,8 +59,6 @@ class BasicClassifier:
     def increment_feature_category_count(self, features_categories):
         self.df_feature_category_count = self.df_feature_category_count\
                                             .add(features_categories, fill_value=0).fillna(0)
-        self.df_feature_category_count.index.name = 'Features'
-        self.df_feature_category_count.columns.name = 'Categories'
 
     # increment the item count in a category
     def increment_category_count(self, categories):
@@ -63,7 +70,6 @@ class BasicClassifier:
                     self.ds_category_count[cat] += 1
                 except KeyError:
                     self.ds_category_count[cat] = 1
-        self.ds_category_count.index.name = 'Categories'
 
     # train classifier given an item and category
     def train(self, item, categories):
@@ -76,7 +82,7 @@ class BasicClassifier:
 
     # number of times a feature occurred in a category - (feature,category) value
     def feature_category_count(self, features, categories):
-        df_count = self.df_feature_category_count.ix[features][categories]
+        df_count = self.df_feature_category_count.loc[features,categories]
         df_count.fillna(0, inplace = True)
         return df_count
 
@@ -148,6 +154,38 @@ class BasicClassifier:
         store['ds_category_nb_thresholds'] = self.ds_category_nb_thresholds
         store.close()
 
+    # save data to sqlite
+    def save_data_to_sqlite(self):
+        db_filename = self.sqlite_db + str(self.user_id) + '.sqlite'
+        db_conn = sqlite3.connect(db_filename)
+        self.ds_category_count.to_sql('ds_category_count', db_conn, if_exists='replace')
+        self.df_feature_category_count.to_sql('df_feature_category_count', db_conn,
+                                              if_exists='replace')
+        self.ds_category_ll_thresholds.to_sql('ds_category_ll_thresholds', db_conn,
+                                              if_exists='replace')
+        self.ds_category_nb_thresholds.to_sql('ds_category_nb_thresholds', db_conn,
+                                              if_exists='replace')
+        db_conn.close()
+        return
+
+    # load data from sqlite
+    def load_data_from_sqlite(self):
+        db_filename = self.sqlite_db + str(self.user_id) + '.sqlite'
+        db_conn = sqlite3.connect(db_filename)
+        self.df_feature_category_count = pd.read_sql("SELECT * FROM df_feature_category_count",
+                                                     db_conn, index_col='Features')
+        self.ds_category_count = pd.read_sql("SELECT * FROM ds_category_count", db_conn,
+                                             index_col='Categories').iloc[:,0]
+        self.ds_category_ll_thresholds = pd.read_sql("SELECT * FROM ds_category_ll_thresholds",
+                                                     db_conn, index_col='Categories').iloc[:,0]
+        self.ds_category_nb_thresholds = pd.read_sql("SELECT * FROM ds_category_nb_thresholds",
+                                                     db_conn, index_col='Categories').iloc[:,0]
+        self.ds_category_nb_thresholds.name = 'NB_Thresholds'
+        self.ds_category_ll_thresholds.name = 'LL_Thresholds'
+        self.ds_category_count.name = 'N_Items'
+        db_conn.close()
+        return
+
     # load data from mongodb
     def load_data_from_mongodb(self, mongo_db_name):
         query = {'user_id': self.user_id}
@@ -179,6 +217,9 @@ class BasicClassifier:
         self.ds_category_count = store['ds_category_count']
         self.ds_category_ll_thresholds = store['ds_category_ll_thresholds']
         self.ds_category_nb_thresholds = store['ds_category_nb_thresholds']
+        self.ds_category_nb_thresholds.name = 'NB_Thresholds'
+        self.ds_category_ll_thresholds.name = 'LL_Thresholds'
+        self.ds_category_count.name = 'N_Items'
         store.close()
 
     # probability that a given feature will appear in an item belonging to given category
@@ -193,7 +234,7 @@ class BasicClassifier:
         init_weight = pd.Series(init_weight,index=features)
         init_prob = pd.Series(init_prob, index=features)
         features_prob = pfunc(features, categories)
-        features_count = self.df_feature_category_count.ix[features].sum(axis=1)
+        features_count = self.df_feature_category_count.loc[features,:].sum(axis=1)
         prob = features_prob.apply(lambda x:(x*features_count+init_weight*init_prob)\
                                             /(init_weight+features_count))
         return prob.fillna(0)
@@ -211,7 +252,6 @@ class BernoulliNBclassifier(BasicClassifier):
     def set_thresholds(self, categories, thresholds):
         # with self.lock:
         self.ds_category_nb_thresholds[categories] = thresholds
-        self.ds_category_nb_thresholds.index.name = 'Categories'
 
     # get thresholds
     def get_threshold(self, category):
@@ -266,7 +306,6 @@ class LogLikelihoodClassifier(BasicClassifier):
     def set_thresholds(self, categories, thresholds):
         # with self.lock:
         self.ds_category_ll_thresholds[categories] = thresholds
-        self.ds_category_ll_thresholds.index.name = 'Categories'
 
     # get thresholds
     def get_threshold(self, category):
