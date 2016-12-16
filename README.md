@@ -5,8 +5,7 @@
 Email Classifiers
 
 * Bernoulli Naive Bayes Classifer
-* Fisher Classifer
-* Multinomial Naive Bayes Classifer
+* Log-Likelihood / Maximum-Entropy Classifier
 
 
 Version 1
