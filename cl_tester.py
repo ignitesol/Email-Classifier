@@ -202,7 +202,7 @@ def load_test_sqlite(n_users, n_ops, id_suffix='20_newsgroup'):
             shutil.copyfile(db_dir+id_suffix+'.sqlite', users_dict[uid]['db'])
     print('done.\n\n')
     # using joblib to simulate parallel training and classification
-    njobs = 10
+    njobs = 4
     parallelizer = joblib.Parallel(n_jobs=njobs) # backend='threading')
     task_iterator = (joblib.delayed(user_session)(uid, n_ops) for uid in uids)
     cl_list = parallelizer(task_iterator)
