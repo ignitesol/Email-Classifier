@@ -34,12 +34,13 @@ def train_classifier(cl, X_train, y_train):
         t2 = time.time()
         t += t2-t1
         if not bool((i + 1) % 100):
-            print('Trained on {:0.0f} files @ {:0.3f} sec/file'.format(i + 1, t/(i+1)),flush=True)
+            print('Trained {:5.0f} files\t{:0.3f} sec/file'.format(i + 1, t/(i+1)),flush=True)
     return
 
 
 # predict_categories ##############################################################################
 def predict_categories(cl, X_test, n_multi):
+    t=0
     df_test = pd.DataFrame(index=X_test.index)
     df_test['Pred_One_Category'] = '-'
     df_test['Pred_Multi_Category'] = '-'
@@ -51,14 +52,14 @@ def predict_categories(cl, X_test, n_multi):
                 txt = txt_file.read()
         except UnicodeDecodeError:
             continue
+        t1 = time.time()
         top_categories = cl.classify(txt, n_multi)
+        t2 = time.time()
+        t += t2-t1
         df_test.set_value(rowidx, 'Pred_Multi_Category', top_categories)
         df_test.set_value(rowidx, 'Pred_One_Category', top_categories[0])
-        # try:
-        #     df_test.set_value(rowidx, 'Pred_One_Category', top_categories[0])
-        # except IndexError:
-        #     df_test.set_value(rowidx, 'Pred_One_Category', '-')
-        #     print('Error with' + file_path)
+        if not bool((i + 1) % 100):
+            print('Tested {:5.0f} files\t{:0.3f} sec/file'.format(i + 1, t/(i+1)),flush=True)
     return df_test
 
 
@@ -73,36 +74,40 @@ def prediction_accuracy(df_pred, y_test):
     df_pred['Accuracy_Multi_Category'] = df_pred.apply(check_multi_accuracy, axis=1)
     column_order = ['True_Category','Pred_One_Category','Accuracy_One_Category',
                     'Pred_Multi_Category','Accuracy_Multi_Category']
-    print(df_pred[['Accuracy_One_Category','Accuracy_Multi_Category']].sum()/len(df_pred),'\n')
-    return df_pred[column_order]
+    df_accu = df_pred[['Accuracy_One_Category','Accuracy_Multi_Category']].sum()/len(df_pred)
+    return df_pred[column_order], df_accu
 
 
 # walk through and list files in DataSet folder ###################################################
-def list_files_paths(dir_name):
+def list_files_paths(dir_name, ignore_list=[], threshold=0):
     data_dir = './DataSets/' + dir_name
     df_list = []
     for dirpath,dirnames,filenames in os.walk(data_dir):
-        df = pd.DataFrame(filenames,columns=['filename'])
-        df['filepath'] = df['filename'].map(lambda fname: dirpath + '/' + fname)
-        df['category'] = dirpath.split(sep='/')[-1].strip().replace('.','_').replace('-','_')
-        df_list.append(df)
+        category = dirpath.split(sep='/')[-1].strip().replace('.','_').replace('-','_')
+        if category not in ignore_list:
+            df = pd.DataFrame(filenames,columns=['filename'])
+            df['filepath'] = df['filename'].map(lambda fname: dirpath + '/' + fname)
+            df['category'] = category
+            df_list.append(df)
     df_items_categories = pd.concat(df_list, axis=0, ignore_index=True)
-    return df_items_categories
+    ds_nitems = df_items_categories['category'].value_counts()
+    category_list = ds_nitems[ds_nitems >= threshold].index
+    return df_items_categories[df_items_categories['category'].isin(category_list)]
 
 
 # train and test on datadir #######################################################################
-def train_test_on_datadir(cl, n_multi=3, samplefrac=0.2, randstate=42, testsize=0.2):
+def train_test_on_datadir(cl,n_multi=2,frac=0.2,rndseed=42,tfrac=0.2,ignore_list=[],threshold=0):
+    tfrac=0.2
     dir_name = cl.user_id
-    print('\nTotal number of items in persistent training data:', cl.ds_category_count.sum())
-    print('Number of items in persistent training data, by category:')
-    print(cl.ds_category_count)
+#    print('\nTotal number of items in persistent training data:', cl.ds_category_count.sum())
+#    print('Number of items in persistent training data, by category:')
+#    print(cl.ds_category_count)
 
-    df_items_categories = list_files_paths(dir_name).sample(frac=samplefrac, replace=False,
-                                                            random_state = randstate*42)
+    df_items_categories = list_files_paths(dir_name, ignore_list=ignore_list, threshold=threshold)\
+                                        .sample(frac=frac,replace=False,random_state = rndseed*42)
     X = df_items_categories['filepath']
     y = df_items_categories['category']
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size = testsize,
-                                                        random_state = randstate)
+    X_train, X_test, y_train, y_test = train_test_split(X,y,test_size=tfrac,random_state=rndseed)
     n_train = X_train.size
     n_test = X_test.size
     print('\nTotal Sample Size:', n_train+n_test)
@@ -114,30 +119,30 @@ def train_test_on_datadir(cl, n_multi=3, samplefrac=0.2, randstate=42, testsize=
     t1 = time.time()
     train_classifier(cl, X_train, y_train)
     t2 = time.time()
-    print('\nFinished Training on {:0.0f} items in in {:0.0f} sec - {:0.0f} items per sec.'\
+    print('Finished Training on {:0.0f} items in in {:0.0f} sec - {:0.0f} items per sec.'\
           .format(n_train, t2-t1, n_train/(t2-t1)) )
-    print('\nTotal number of items used:', cl.ds_category_count.sum())
-    print('Number of items trained, by category:')
-    print(cl.ds_category_count)
+#    print('\nTotal number of items used:', cl.ds_category_count.sum())
+#    print('Number of items trained, by category:')
+#    print(cl.ds_category_count)
 
     # test the classifier on testing dataset
     print('\nTesting ...')
     t1 = time.time()
     df_prediction = predict_categories(cl, X_test, n_multi)
     t2 = time.time()
-    print('\nFinished Classification of {:0.0f} items in {:0.0f} sec - {:0.0f} items per sec.'\
+    print('Finished Classification of {:0.0f} items in {:0.0f} sec - {:0.0f} items per sec.'\
           .format(n_test,t2-t1, n_test/(t2-t1)) )
 
     # find accuracy of prediction
-    df_test = prediction_accuracy(df_prediction, y_test)
+    df_test, df_accu = prediction_accuracy(df_prediction, y_test)
     # return accuracy and predictions
-    return df_test
+    return df_test, df_accu
 
 
 # test on N random items ##########################################################################
-def random_test(n_items, user_id='20_newsgroup', n_multi=2):
+def random_test(n_items, user_id='20_newsgroup', n_multi=2, ignore_list=[], threshold=0):
     datadir = user_id
-    df_items = list_files_paths(datadir)
+    df_items = list_files_paths(datadir, ignore_list=ignore_list, threshold=threshold)
     items = df_items.sample(n_items)
     items_paths = items.filepath
     items_cats = items.category
@@ -156,8 +161,8 @@ def random_test(n_items, user_id='20_newsgroup', n_multi=2):
 
 ###################################################################################################
 
-
-items_list = list_files_paths('20_newsgroup')
+user_id = '20_newsgroup'
+items_list = list_files_paths(user_id, ignore_list=[], threshold=0)
 users_dict = None
 
 
@@ -202,7 +207,7 @@ def load_test_sqlite(n_users, n_ops, id_suffix='20_newsgroup'):
             shutil.copyfile(db_dir+id_suffix+'.sqlite', users_dict[uid]['db'])
     print('done.\n\n')
     # using joblib to simulate parallel training and classification
-    njobs = 4
+    njobs = 10
     parallelizer = joblib.Parallel(n_jobs=njobs)
     task_iterator = (joblib.delayed(user_session)(uid, n_ops) for uid in uids)
     cl_list = parallelizer(task_iterator)

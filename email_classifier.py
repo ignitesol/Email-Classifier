@@ -113,13 +113,19 @@ class BasicClassifier:
         # bulk_replace.execute()
 
     # save data to mongodb
-    def save_data_to_mongodb(self, mongo_db_name):
+    def save_data_to_mongodb(self, mongo_db_name, df_as_json=True):
         query = {'user_id': self.user_id}
         # save features_categories_count
-        df_fcc = self.df_feature_category_count.reset_index()
-        df_fcc['user_id'] = self.user_id
         fcc_collection = mongo_db_name.feature_categories_count
-        self.update_db_features_categories_count(fcc_collection, df_fcc)
+        if df_as_json:
+            df_fcc = json.loads(self.df_feature_category_count.to_json())
+            fcc_collection.replace_one(query,
+                                      {'user_id': self.user_id,'df_feature_category_count': df_fcc},
+                                      upsert = True)
+        else:
+            df_fcc = self.df_feature_category_count.reset_index()
+            df_fcc['user_id'] = self.user_id
+            self.update_db_features_categories_count(fcc_collection, df_fcc)
         # save categories_count
         ds_cc = json.loads(self.ds_category_count.to_json())
         cc_collection = mongo_db_name.categories_count
@@ -139,20 +145,6 @@ class BasicClassifier:
                                     {'user_id': self.user_id, 'ds_category_ll_thresholds': ds_cllt},
                                     upsert = True)
 
-    # save data to hdf5
-    def save_data_to_hdf5(self):
-        filename = self.hdf5_db + str(self.user_id) + '.h5'
-        store = pd.HDFStore(filename)
-        if store.keys():
-            store.remove('df_feature_category_count')
-            store.remove('ds_category_count')
-            store.remove('ds_category_ll_thresholds')
-            store.remove('ds_category_nb_thresholds')
-        store['df_feature_category_count'] = self.df_feature_category_count
-        store['ds_category_count'] = self.ds_category_count
-        store['ds_category_ll_thresholds'] = self.ds_category_ll_thresholds
-        store['ds_category_nb_thresholds'] = self.ds_category_nb_thresholds
-        store.close()
 
     # save data to sqlite
     def save_data_to_sqlite(self):
@@ -187,12 +179,17 @@ class BasicClassifier:
         return
 
     # load data from mongodb
-    def load_data_from_mongodb(self, mongo_db_name):
+    def load_data_from_mongodb(self, mongo_db_name, df_as_json=True):
         query = {'user_id': self.user_id}
         # load features_categories_count
         fcc_collection = mongo_db_name.feature_categories_count
-        df_fcc = pd.DataFrame(list(fcc_collection.find(query))).drop(['_id','user_id'],axis=1)
-        self.df_feature_category_count = df_fcc.set_index('Features',drop=True)
+        if df_as_json:
+            df_fcc = pd.DataFrame(fcc_collection.find_one(query)['df_feature_category_count'])
+            df_fcc.index.name = 'Features'
+            self.df_feature_category_count = df_fcc
+        else:
+            df_fcc = pd.DataFrame(list(fcc_collection.find(query))).drop(['_id','user_id'],axis=1)
+            self.df_feature_category_count = df_fcc.set_index('Features',drop=True)
         # load category_count
         cc_collection = mongo_db_name.categories_count
         ds_cc = pd.Series(cc_collection.find_one(query)['ds_category_count'])
@@ -209,18 +206,6 @@ class BasicClassifier:
         ds_cllt.index.name = 'Categories'
         self.ds_category_ll_thresholds = ds_cllt.rename('LL_Thresholds')
 
-    # load data from hdf5
-    def load_data_from_hdf5(self):
-        filename = self.hdf5_db + str(self.user_id) + '.h5'
-        store = pd.HDFStore(filename)
-        self.df_feature_category_count = store['df_feature_category_count']
-        self.ds_category_count = store['ds_category_count']
-        self.ds_category_ll_thresholds = store['ds_category_ll_thresholds']
-        self.ds_category_nb_thresholds = store['ds_category_nb_thresholds']
-        self.ds_category_nb_thresholds.name = 'NB_Thresholds'
-        self.ds_category_ll_thresholds.name = 'LL_Thresholds'
-        self.ds_category_count.name = 'N_Items'
-        store.close()
 
     # probability that a given feature will appear in an item belonging to given category
     # p(feature/category)
