@@ -14,6 +14,9 @@ import email_classifier
 import joblib
 from importlib import reload
 import random
+import sqlite3
+from sqlite3 import DatabaseError
+import pymongo
 
 
 reload(email_classifier)
@@ -34,7 +37,10 @@ def train_classifier(cl, X_train, y_train):
         t2 = time.time()
         t += t2-t1
         if not bool((i + 1) % 100):
-            print('Trained {:5.0f} files\t{:0.3f} sec/file'.format(i + 1, t/(i+1)),flush=True)
+            print('\rTrained {:5.0f} files\t{:0.3f} sec/file'.format(i + 1, t/(i+1)),
+                  end='', flush=True)
+    print('\rTrained {:5.0f} files\t{:0.3f} sec/file'.format(i + 1, t/(i+1)),
+          end='', flush=True)
     return
 
 
@@ -59,7 +65,10 @@ def predict_categories(cl, X_test, n_multi):
         df_test.set_value(rowidx, 'Pred_Multi_Category', top_categories)
         df_test.set_value(rowidx, 'Pred_One_Category', top_categories[0])
         if not bool((i + 1) % 100):
-            print('Tested {:5.0f} files\t{:0.3f} sec/file'.format(i + 1, t/(i+1)),flush=True)
+            print('\rTested {:5.0f} files\t{:0.3f} sec/file'.format(i + 1, t/(i+1)),
+                  end='', flush=True)
+    print('\rTested {:5.0f} files\t{:0.3f} sec/file'.format(i + 1, t/(i+1)),
+          end='', flush=True)
     return df_test
 
 
@@ -97,7 +106,6 @@ def list_files_paths(dir_name, ignore_list=[], threshold=0):
 
 # train and test on datadir #######################################################################
 def train_test_on_datadir(cl,n_multi=2,frac=0.2,rndseed=42,tfrac=0.2,ignore_list=[],threshold=0):
-    tfrac=0.2
     dir_name = cl.user_id
 #    print('\nTotal number of items in persistent training data:', cl.ds_category_count.sum())
 #    print('Number of items in persistent training data, by category:')
@@ -110,27 +118,28 @@ def train_test_on_datadir(cl,n_multi=2,frac=0.2,rndseed=42,tfrac=0.2,ignore_list
     X_train, X_test, y_train, y_test = train_test_split(X,y,test_size=tfrac,random_state=rndseed)
     n_train = X_train.size
     n_test = X_test.size
-    print('\nTotal Sample Size:', n_train+n_test)
-    print('Training Sample Size:', n_train)
-    print('Testing Sample Size:', n_test)
+    n_total = n_train + n_test
+    print('\nTotal Size:\t', n_total,'\t({:3.0f}% of available data)'.format(frac*100))
+    print('Training Size:\t', n_train,'\t({:3.0f}% of {:3.0f} )'.format((1-tfrac)*100, n_total))
+    print('Testing Size:\t', n_test,'\t({:3.0f}% of {:3.0f} )'.format(tfrac*100, n_total))
 
     # train the classifier on training dataset
-    print('\nTraining on new data ...')
+    print('\nTraining :')
     t1 = time.time()
     train_classifier(cl, X_train, y_train)
     t2 = time.time()
-    print('Finished Training on {:0.0f} items in in {:0.0f} sec - {:0.0f} items per sec.'\
+    print('\nFinished Training on {:0.0f} items in in {:0.0f} sec - {:0.0f} items per sec.'\
           .format(n_train, t2-t1, n_train/(t2-t1)) )
 #    print('\nTotal number of items used:', cl.ds_category_count.sum())
 #    print('Number of items trained, by category:')
 #    print(cl.ds_category_count)
 
     # test the classifier on testing dataset
-    print('\nTesting ...')
+    print('\nTesting :')
     t1 = time.time()
     df_prediction = predict_categories(cl, X_test, n_multi)
     t2 = time.time()
-    print('Finished Classification of {:0.0f} items in {:0.0f} sec - {:0.0f} items per sec.'\
+    print('\nFinished Classification of {:0.0f} items in {:0.0f} sec - {:0.0f} items per sec.'\
           .format(n_test,t2-t1, n_test/(t2-t1)) )
 
     # find accuracy of prediction
@@ -143,19 +152,30 @@ def train_test_on_datadir(cl,n_multi=2,frac=0.2,rndseed=42,tfrac=0.2,ignore_list
 def random_test(n_items, user_id='20_newsgroup', n_multi=2, ignore_list=[], threshold=0):
     datadir = user_id
     df_items = list_files_paths(datadir, ignore_list=ignore_list, threshold=threshold)
-    items = df_items.sample(n_items)
+    cl_ll = email_classifier.LogLikelihoodClassifier(user_id = user_id)
+    try:
+        cl_ll.load_data_from_sqlite()
+    except:
+        print('Looks like there is no training data for this user')
+        return cl_ll
+    try:
+        items = df_items.sample(n_items)
+    except ValueError:
+        print('Sample size = 0, try incresing threshold')
+        return cl_ll
     items_paths = items.filepath
     items_cats = items.category
-    cl_ll = email_classifier.LogLikelihoodClassifier(user_id = user_id)
-    # cl_nb = email_classifier.BernoulliNBclassifier(user_id = user_id)
-    cl_ll.load_data_from_sqlite()
-    # cl_nb.load_data_from_hdf5()
-    print('\n\nTest Sample :\n')
+
+    print('\nTest Sample :\n')
     print(items)
-    # print('\n\nBernoulli Naive Bayes Classifier : ')
-    # print(prediction_accuracy(predict_categories(cl_nb,items_paths,n_multi=n_multi),items_cats))
-    print('\n\nLog-Likelihood Classifier : ')
-    print(prediction_accuracy(predict_categories(cl_ll,items_paths,n_multi=n_multi),items_cats))
+    print('\nLog-Likelihood Classifier : ')
+    df_test, df_accu = prediction_accuracy(predict_categories(cl_ll,items_paths,n_multi=n_multi),
+                                           items_cats)
+    print('\n')
+    print(df_test)
+    print('\n')
+    print(df_accu)
+    print('\n')
     return cl_ll
 
 

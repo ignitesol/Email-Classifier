@@ -12,7 +12,10 @@ import scipy
 import threading
 import pymongo
 import sqlite3
+import warnings
+import pickle
 
+warnings.simplefilter('error', RuntimeWarning)
 
 # basic classifier ################################################################################
 class BasicClassifier:
@@ -22,8 +25,8 @@ class BasicClassifier:
     # init with feature_extraction_method and database db_name_table
     def __init__(self, user_id):
         #
-        self.df_feature_category_count = pd.DataFrame() # number of features by category
-        self.ds_category_count = pd.Series().rename('N_Items') # number of items in each category
+        self.df_feature_category_count = pd.DataFrame(dtype='int32') # number of features by category
+        self.ds_category_count = pd.Series(dtype='int32').rename('N_Items') # number of items in each category
         self.ds_category_ll_thresholds = pd.Series().rename('LL_Thresholds')
         self.ds_category_nb_thresholds = pd.Series().rename('NB_Thresholds')
         self.user_id = user_id
@@ -51,7 +54,7 @@ class BasicClassifier:
         # email_ids = re.findall(regex_for_email_ids, item)
         # words += email_ids
         # list unique words and assign count of 1 for each - as a series of word counts
-        words_count = pd.Series(1, index=set(words_nostop))
+        words_count = pd.Series(1, index=set(words_nostop), dtype='int32')
         words_count.index.name = 'Features'
         return words_count
 
@@ -113,12 +116,17 @@ class BasicClassifier:
         # bulk_replace.execute()
 
     # save data to mongodb
-    def save_data_to_mongodb(self, mongo_db_name, df_as_json=True):
+    def save_data_to_mongodb(self, mongo_db_name, as_type='pickle'):
         query = {'user_id': self.user_id}
         # save features_categories_count
         fcc_collection = mongo_db_name.feature_categories_count
-        if df_as_json:
+        if as_type == 'json':
             df_fcc = json.loads(self.df_feature_category_count.to_json())
+            fcc_collection.replace_one(query,
+                                      {'user_id': self.user_id,'df_feature_category_count': df_fcc},
+                                      upsert = True)
+        elif as_type == 'pickle':
+            df_fcc = pickle.dumps(self.df_feature_category_count.to_sparse(fill_value=0))
             fcc_collection.replace_one(query,
                                       {'user_id': self.user_id,'df_feature_category_count': df_fcc},
                                       upsert = True)
@@ -144,6 +152,38 @@ class BasicClassifier:
         cllt_collection.replace_one(query,
                                     {'user_id': self.user_id, 'ds_category_ll_thresholds': ds_cllt},
                                     upsert = True)
+
+    # load data from mongodb
+    def load_data_from_mongodb(self, mongo_db_name, as_type='pickle'):
+        query = {'user_id': self.user_id}
+        # load features_categories_count
+        fcc_collection = mongo_db_name.feature_categories_count
+        if as_type == 'json':
+            df_fcc = pd.DataFrame(fcc_collection.find_one(query)['df_feature_category_count'])
+            df_fcc.index.name = 'Features'
+            self.df_feature_category_count = df_fcc
+        elif as_type == 'pickle':
+            df_fcc = pickle.loads(fcc_collection.find_one(query)['df_feature_category_count'])
+            df_fcc.index.name = 'Features'
+            self.df_feature_category_count = df_fcc.to_dense()
+        else:
+            df_fcc = pd.DataFrame(list(fcc_collection.find(query))).drop(['_id','user_id'],axis=1)
+            self.df_feature_category_count = df_fcc.set_index('Features',drop=True)
+        # load category_count
+        cc_collection = mongo_db_name.categories_count
+        ds_cc = pd.Series(cc_collection.find_one(query)['ds_category_count'])
+        ds_cc.index.name = 'Categories'
+        self.ds_category_count = ds_cc.rename('N_Items')
+        # load nb_category_thresholds
+        cnbt_collection = mongo_db_name.category_nb_thresholds
+        ds_cnbt = pd.Series(cnbt_collection.find_one(query)['ds_category_nb_thresholds'])
+        ds_cnbt.index.name = 'Categories'
+        self.ds_category_nb_thresholds = ds_cnbt.rename('NB_Thresholds')
+        # load ll_category_thresholds
+        cllt_collection = mongo_db_name.category_ll_thresholds
+        ds_cllt = pd.Series(cllt_collection.find_one(query)['ds_category_ll_thresholds'])
+        ds_cllt.index.name = 'Categories'
+        self.ds_category_ll_thresholds = ds_cllt.rename('LL_Thresholds')
 
 
     # save data to sqlite
@@ -177,34 +217,6 @@ class BasicClassifier:
         self.ds_category_count.name = 'N_Items'
         db_conn.close()
         return
-
-    # load data from mongodb
-    def load_data_from_mongodb(self, mongo_db_name, df_as_json=True):
-        query = {'user_id': self.user_id}
-        # load features_categories_count
-        fcc_collection = mongo_db_name.feature_categories_count
-        if df_as_json:
-            df_fcc = pd.DataFrame(fcc_collection.find_one(query)['df_feature_category_count'])
-            df_fcc.index.name = 'Features'
-            self.df_feature_category_count = df_fcc
-        else:
-            df_fcc = pd.DataFrame(list(fcc_collection.find(query))).drop(['_id','user_id'],axis=1)
-            self.df_feature_category_count = df_fcc.set_index('Features',drop=True)
-        # load category_count
-        cc_collection = mongo_db_name.categories_count
-        ds_cc = pd.Series(cc_collection.find_one(query)['ds_category_count'])
-        ds_cc.index.name = 'Categories'
-        self.ds_category_count = ds_cc.rename('N_Items')
-        # load nb_category_thresholds
-        cnbt_collection = mongo_db_name.category_nb_thresholds
-        ds_cnbt = pd.Series(cnbt_collection.find_one(query)['ds_category_nb_thresholds'])
-        ds_cnbt.index.name = 'Categories'
-        self.ds_category_nb_thresholds = ds_cnbt.rename('NB_Thresholds')
-        # load ll_category_thresholds
-        cllt_collection = mongo_db_name.category_ll_thresholds
-        ds_cllt = pd.Series(cllt_collection.find_one(query)['ds_category_ll_thresholds'])
-        ds_cllt.index.name = 'Categories'
-        self.ds_category_ll_thresholds = ds_cllt.rename('LL_Thresholds')
 
 
     # probability that a given feature will appear in an item belonging to given category
@@ -319,7 +331,10 @@ class LogLikelihoodClassifier(BasicClassifier):
         degf = 2*len(features)
         p_categories = self.feature_category_wghtprob(features, categories,
                                                       self.p_category_given_features).product()
-        log_likelihood = -2*np.log(p_categories)
+        try:
+            log_likelihood = -2*np.log(p_categories)
+        except RuntimeWarning:
+            log_likelihood = -2*np.log(np.nextafter(p_categories, 1))
         chi2sf_score = log_likelihood.map(lambda x : scipy.stats.chi2.sf(x,degf))
         return chi2sf_score
 
