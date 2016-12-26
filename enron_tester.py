@@ -93,7 +93,7 @@ def test_one_user(user_id, ignore_list=IGNORE_CATS, threshold=10, n_cat_limit=25
     if save_db:
         print('\nSaving to db(s) ... ', end='')
         cl.save_data_to_mongodb(MONGO_DB)
-        cl.save_data_to_sqlite()
+#        cl.save_data_to_sqlite()
         print('done.')
     return user_dict
 
@@ -119,14 +119,16 @@ def test_rand_users(n_users=5, base_threshold=10, n_cat_limit=25, save_db=False,
             users_df.loc[user_id,'Threshold'] = user_dict['threshold']
             users_df.loc[user_id,'N_emails_all'] = user_dict['cat_count_all'].sum()
             users_df.loc[user_id,'N_emails_used'] = user_dict['cat_count_used'].sum()
-            users_df.loc[user_id,'Accuracy_One_Category'] = user_dict['test_accuracy']['Accuracy_One_Category']
-            users_df.loc[user_id,'Accuracy_Multi_Category'] = user_dict['test_accuracy']['Accuracy_Multi_Category']
+            users_df.loc[user_id,'Accuracy_One_Category'] \
+                        = user_dict['test_accuracy']['Accuracy_One_Category']
+            users_df.loc[user_id,'Accuracy_Multi_Category'] \
+                        = user_dict['test_accuracy']['Accuracy_Multi_Category']
     return users_df, users_dicts
 
 
-def test_top_users(n_users=5, base_threshold=10, n_cat_limit=25, save_db=False, rndseed=1):
+def test_top_users(n_users=5, start=1, base_threshold=10, n_cat_limit=25, save_db=False, rndseed=1):
     all_users = list_users_n_categories(EMAIL_DIR)
-    top_n_users = all_users.nlargest(n_users).index
+    top_n_users = all_users.sort_values(ascending=False).index[start-1:start+n_users-1]
     users_dicts = {user_id:{} for user_id in top_n_users}
     users_df = pd.DataFrame(index=top_n_users, columns=['N_categories_all','N_categories_used',
                                                         'Threshold',
@@ -145,8 +147,10 @@ def test_top_users(n_users=5, base_threshold=10, n_cat_limit=25, save_db=False, 
             users_df.loc[user_id,'Threshold'] = user_dict['threshold']
             users_df.loc[user_id,'N_emails_all'] = user_dict['cat_count_all'].sum()
             users_df.loc[user_id,'N_emails_used'] = user_dict['cat_count_used'].sum()
-            users_df.loc[user_id,'Accuracy_One_Category'] = user_dict['test_accuracy']['Accuracy_One_Category']
-            users_df.loc[user_id,'Accuracy_Multi_Category'] = user_dict['test_accuracy']['Accuracy_Multi_Category']
+            users_df.loc[user_id,'Accuracy_One_Category'] \
+                        = user_dict['test_accuracy']['Accuracy_One_Category']
+            users_df.loc[user_id,'Accuracy_Multi_Category'] \
+                        = user_dict['test_accuracy']['Accuracy_Multi_Category']
     return users_df, users_dicts
 
 

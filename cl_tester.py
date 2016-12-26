@@ -21,6 +21,8 @@ import pymongo
 
 reload(email_classifier)
 
+MONGO_DB = pymongo.MongoClient().email_classifier_db
+
 
 # train it ########################################################################################
 def train_classifier(cl, X_train, y_train):
@@ -154,7 +156,7 @@ def random_test(n_items, user_id='20_newsgroup', n_multi=2, ignore_list=[], thre
     df_items = list_files_paths(datadir, ignore_list=ignore_list, threshold=threshold)
     cl_ll = email_classifier.LogLikelihoodClassifier(user_id = user_id)
     try:
-        cl_ll.load_data_from_sqlite()
+        cl_ll.load_data_from_mongodb(MONGO_DB)
     except:
         print('Looks like there is no training data for this user')
         return cl_ll
@@ -190,7 +192,7 @@ users_dict = None
 def user_session(uid, n_ops):
     global users_dict
     cl = email_classifier.LogLikelihoodClassifier(user_id = users_dict[uid]['user_id'])
-    cl.load_data_from_sqlite()
+    cl.load_data_from_mongodb(MONGO_DB)
     print('UserID\t', cl.user_id, '\tLoading training data\t',cl.ds_category_count.sum(),'items')
     for i_op in range(n_ops):
         item = None
@@ -208,12 +210,12 @@ def user_session(uid, n_ops):
             cl.classify(item,n_multi=2)
             print('UserID\t', cl.user_id,'\tClassification of\t',item_details.filepath.values[0])
     print('UserID\t', cl.user_id, '\tSaving training data\t',cl.ds_category_count.sum(),'items')
-    cl.save_data_to_sqlite()
+    cl.save_data_to_mongodb(MONGO_DB)
     return cl
 
 
 ###################################################################################################
-def load_test_sqlite(n_users, n_ops, id_suffix='20_newsgroup'):
+def load_test(n_users, n_ops, id_suffix='20_newsgroup'):
     global users_dict
     db_dir = './sqlite_db/'
     print('\n\nChecking and replicating main_db if a user_db doesnt exist ... ',end='')
