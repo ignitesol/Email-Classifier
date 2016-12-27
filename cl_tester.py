@@ -182,13 +182,6 @@ def random_test(n_items, user_id='20_newsgroup', n_multi=2, ignore_list=[], thre
 
 
 ###################################################################################################
-
-user_id = '20_newsgroup'
-items_list = list_files_paths(user_id, ignore_list=[], threshold=0)
-users_dict = None
-
-
-###################################################################################################
 def user_session(uid, n_ops):
     global users_dict
     cl = email_classifier.LogLikelihoodClassifier(user_id = users_dict[uid]['user_id'])
@@ -216,7 +209,11 @@ def user_session(uid, n_ops):
 
 ###################################################################################################
 def load_test(n_users, n_ops, id_suffix='20_newsgroup'):
+    global user_id
     global users_dict
+    global items_list
+    user_id = id_suffix
+    items_list = list_files_paths(user_id, ignore_list=[], threshold=0)
     db_dir = './sqlite_db/'
     print('\n\nChecking and replicating main_db if a user_db doesnt exist ... ',end='')
     users_dict = {uid+1:{'user_id':id_suffix + '_' + str(uid+1),
