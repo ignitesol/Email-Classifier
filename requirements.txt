@@ -1,0 +1,11 @@
+pandas
+numpy
+json
+nltk
+scipy
+threading
+pymongo
+sqlite3
+warnings
+pickle
+sklearn
