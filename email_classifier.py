@@ -3,14 +3,14 @@
 @author: srikant bondugula
 
 """
-import re
+#import re
 import pandas as pd
 import numpy as np
 import json
 import nltk
 import scipy
-import threading
-import pymongo
+#import threading
+#import pymongo
 import sqlite3
 import warnings
 import pickle

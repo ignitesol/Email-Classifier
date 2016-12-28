@@ -11,11 +11,9 @@ import shutil
 from sklearn.model_selection import train_test_split
 import time
 import email_classifier
-import joblib
 from importlib import reload
 import random
 import sqlite3
-from sqlite3 import DatabaseError
 import pymongo
 
 
@@ -181,56 +179,55 @@ def random_test(n_items, user_id='20_newsgroup', n_multi=2, ignore_list=[], thre
     return cl_ll
 
 
-###################################################################################################
-def user_session(uid, n_ops):
-    global users_dict
-    cl = email_classifier.LogLikelihoodClassifier(user_id = users_dict[uid]['user_id'])
-    cl.load_data_from_mongodb(MONGO_DB)
-    print('UserID\t', cl.user_id, '\tLoading training data\t',cl.ds_category_count.sum(),'items')
-    for i_op in range(n_ops):
-        item = None
-        while item is None:
-            try:
-                item_details = items_list.sample(random_state=random.randint(0,100000))
-                item = open(item_details.filepath.values[0],'r').read()
-            except UnicodeDecodeError:
-                continue
-        category = item_details.category.values[0]
-        if random.randint(0,1):
-            cl.train(item,[category])
-            print('UserID\t', cl.user_id, '\tTraining on\t\t', item_details.filepath.values[0])
-        else:
-            cl.classify(item,n_multi=2)
-            print('UserID\t', cl.user_id,'\tClassification of\t',item_details.filepath.values[0])
-    print('UserID\t', cl.user_id, '\tSaving training data\t',cl.ds_category_count.sum(),'items')
-    cl.save_data_to_mongodb(MONGO_DB)
-    return cl
-
-
-###################################################################################################
-def load_test(n_users, n_ops, id_suffix='20_newsgroup'):
-    global user_id
-    global users_dict
-    global items_list
-    user_id = id_suffix
-    items_list = list_files_paths(user_id, ignore_list=[], threshold=0)
-    db_dir = './sqlite_db/'
-    print('\n\nChecking and replicating main_db if a user_db doesnt exist ... ',end='')
-    users_dict = {uid+1:{'user_id':id_suffix + '_' + str(uid+1),
-                        'db':db_dir+id_suffix+'_'+str(uid+1)+'.sqlite'} for uid in range(n_users)}
-    uids = users_dict.keys()
-    for uid in uids:
-        if os.path.isfile(users_dict[uid]['db']):
-            continue
-        else:
-            shutil.copyfile(db_dir+id_suffix+'.sqlite', users_dict[uid]['db'])
-    print('done.\n\n')
-    # using joblib to simulate parallel training and classification
-    njobs = 10
-    parallelizer = joblib.Parallel(n_jobs=njobs)
-    task_iterator = (joblib.delayed(user_session)(uid, n_ops) for uid in uids)
-    cl_list = parallelizer(task_iterator)
-    for cl in cl_list:
-        users_dict[int(cl.user_id.split('_')[-1])]['cl'] = cl
-    return
-
+####################################################################################################
+#def user_session(uid, n_ops):
+#    global users_dict
+#    cl = email_classifier.LogLikelihoodClassifier(user_id = users_dict[uid]['user_id'])
+#    cl.load_data_from_mongodb(MONGO_DB)
+#    print('UserID\t', cl.user_id, '\tLoading training data\t',cl.ds_category_count.sum(),'items')
+#    for i_op in range(n_ops):
+#        item = None
+#        while item is None:
+#            try:
+#                item_details = items_list.sample(random_state=random.randint(0,100000))
+#                item = open(item_details.filepath.values[0],'r').read()
+#            except UnicodeDecodeError:
+#                continue
+#        category = item_details.category.values[0]
+#        if random.randint(0,1):
+#            cl.train(item,[category])
+#            print('UserID\t', cl.user_id, '\tTraining on\t\t', item_details.filepath.values[0])
+#        else:
+#            cl.classify(item,n_multi=2)
+#            print('UserID\t', cl.user_id,'\tClassification of\t',item_details.filepath.values[0])
+#    print('UserID\t', cl.user_id, '\tSaving training data\t',cl.ds_category_count.sum(),'items')
+#    cl.save_data_to_mongodb(MONGO_DB)
+#    return cl
+#
+#
+####################################################################################################
+#def load_test(n_users, n_ops, id_suffix='20_newsgroup'):
+#    global user_id
+#    global users_dict
+#    global items_list
+#    user_id = id_suffix
+#    items_list = list_files_paths(user_id, ignore_list=[], threshold=0)
+#    db_dir = './sqlite_db/'
+#    print('\n\nChecking and replicating main_db if a user_db doesnt exist ... ',end='')
+#    users_dict = {uid+1:{'user_id':id_suffix + '_' + str(uid+1),
+#                        'db':db_dir+id_suffix+'_'+str(uid+1)+'.sqlite'} for uid in range(n_users)}
+#    uids = users_dict.keys()
+#    for uid in uids:
+#        if os.path.isfile(users_dict[uid]['db']):
+#            continue
+#        else:
+#            shutil.copyfile(db_dir+id_suffix+'.sqlite', users_dict[uid]['db'])
+#    print('done.\n\n')
+#    # using joblib to simulate parallel training and classification
+#    njobs = 10
+#    parallelizer = joblib.Parallel(n_jobs=njobs)
+#    task_iterator = (joblib.delayed(user_session)(uid, n_ops) for uid in uids)
+#    cl_list = parallelizer(task_iterator)
+#    for cl in cl_list:
+#        users_dict[int(cl.user_id.split('_')[-1])]['cl'] = cl
+#    return
