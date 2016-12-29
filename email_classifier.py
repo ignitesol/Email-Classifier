@@ -3,7 +3,6 @@
 @author: srikant bondugula
 
 """
-#import re
 import pandas as pd
 import numpy as np
 import json
@@ -14,6 +13,8 @@ import scipy
 import sqlite3
 import warnings
 import pickle
+
+STOP_WORDS = set(nltk.corpus.stopwords.words('english'))
 
 warnings.simplefilter('error', RuntimeWarning)
 
@@ -31,8 +32,6 @@ class BasicClassifier:
         self.ds_category_nb_thresholds = pd.Series().rename('NB_Thresholds')
         self.user_id = user_id
         #
-        self.STOP_WORDS = set(nltk.corpus.stopwords.words('english'))
-        self.hdf5_db = './hdf5_db/'
         self.sqlite_db = './sqlite_db/'
         self.mongo_db = 'email_classifier_db'
         #
@@ -42,13 +41,13 @@ class BasicClassifier:
         self.ds_category_nb_thresholds.index.name = 'Categories'
         # self.lock = threading.RLock()
 
-    # function to extract list of features ########################################################
+    # function to extract list of features
     def get_features(self, raw_txt):
         item = '\n'.join(raw_txt.split('\n')[1:])
         tokens = set(nltk.word_tokenize(item))
         # list all unique alphanumeric words
         tokens_alnum = [s.lower() for s in tokens if s.isalpha()]
-        words_nostop = [s for s in tokens_alnum if s not in self.STOP_WORDS]
+        words_nostop = [s for s in tokens_alnum if s not in STOP_WORDS]
         # list all email ids
         # regex_for_email_ids = r'[a-zA-Z0-9_.-]+@[a-zA-Z0-9_.-]+\.[a-zA-Z]{2,3}'
         # email_ids = re.findall(regex_for_email_ids, item)
@@ -116,24 +115,14 @@ class BasicClassifier:
         # bulk_replace.execute()
 
     # save data to mongodb
-    def save_data_to_mongodb(self, mongo_db_name, as_type='pickle'):
+    def save_data_to_mongodb(self, mongo_db_name):
         query = {'user_id': self.user_id}
         # save features_categories_count
         fcc_collection = mongo_db_name.feature_categories_count
-        if as_type == 'json':
-            df_fcc = json.loads(self.df_feature_category_count.to_json())
-            fcc_collection.replace_one(query,
-                                      {'user_id': self.user_id,'df_feature_category_count': df_fcc},
-                                      upsert = True)
-        elif as_type == 'pickle':
-            df_fcc = pickle.dumps(self.df_feature_category_count.to_sparse(fill_value=0))
-            fcc_collection.replace_one(query,
-                                      {'user_id': self.user_id,'df_feature_category_count': df_fcc},
-                                      upsert = True)
-        else:
-            df_fcc = self.df_feature_category_count.reset_index()
-            df_fcc['user_id'] = self.user_id
-            self.update_db_features_categories_count(fcc_collection, df_fcc)
+        df_fcc = pickle.dumps(self.df_feature_category_count.to_sparse(fill_value=0))
+        fcc_collection.replace_one(query,
+                                  {'user_id': self.user_id,'df_feature_category_count': df_fcc},
+                                  upsert = True)
         # save categories_count
         ds_cc = json.loads(self.ds_category_count.to_json())
         cc_collection = mongo_db_name.categories_count
@@ -154,21 +143,16 @@ class BasicClassifier:
                                     upsert = True)
 
     # load data from mongodb
-    def load_data_from_mongodb(self, mongo_db_name, as_type='pickle'):
+    def load_data_from_mongodb(self, mongo_db_name):
         query = {'user_id': self.user_id}
         # load features_categories_count
         fcc_collection = mongo_db_name.feature_categories_count
-        if as_type == 'json':
-            df_fcc = pd.DataFrame(fcc_collection.find_one(query)['df_feature_category_count'])
-            df_fcc.index.name = 'Features'
-            self.df_feature_category_count = df_fcc
-        elif as_type == 'pickle':
+        try:
             df_fcc = pickle.loads(fcc_collection.find_one(query)['df_feature_category_count'])
-            df_fcc.index.name = 'Features'
-            self.df_feature_category_count = df_fcc.to_dense()
-        else:
-            df_fcc = pd.DataFrame(list(fcc_collection.find(query))).drop(['_id','user_id'],axis=1)
-            self.df_feature_category_count = df_fcc.set_index('Features',drop=True)
+        except TypeError:
+            raise Exception('There is no training data for this user')
+        df_fcc.index.name = 'Features'
+        self.df_feature_category_count = df_fcc.to_dense()
         # load category_count
         cc_collection = mongo_db_name.categories_count
         ds_cc = pd.Series(cc_collection.find_one(query)['ds_category_count'])
@@ -184,6 +168,9 @@ class BasicClassifier:
         ds_cllt = pd.Series(cllt_collection.find_one(query)['ds_category_ll_thresholds'])
         ds_cllt.index.name = 'Categories'
         self.ds_category_ll_thresholds = ds_cllt.rename('LL_Thresholds')
+        # check if df_feature_category_count is empty
+        if self.df_feature_category_count.empty:
+            raise Exception('There is no training data for this user')
 
 
     # save data to sqlite
