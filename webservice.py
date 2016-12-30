@@ -44,37 +44,34 @@ def classify():
     email_text = content['email_text']
     # response json
     response_json = OrderedDict([('pred_categories', []),
-                                 ('e_init','-'),
-                                 ('e_load','-'),
-                                 ('e_classify','-'),
-                                 ('e_save','-')])
+                                 ('request_status',[])])
     # initialize classifier calls for user_id
     try:
         cl = email_classifier.LogLikelihoodClassifier(user_id)
-        response_json['e_init'] = 'classifier initialisation done'
+        response_json['request_status'].append('classifier initialisation done')
     except Exception as e:
-        response_json['e_init'] = str(e)
+        response_json['request_status'].append(str(e))
         return jsonify(response_json)
     # load previous training data from db
     try:
         cl.load_data_from_mongodb(MONGO_DB)
-        response_json['e_load'] = 'loaded training data from mongo'
+        response_json['request_status'].append('loaded training data from mongo')
     except Exception as e:
-        response_json['e_load'] = str(e)
+        response_json['request_status'].append(str(e))
         return jsonify(response_json)
     # classify email
     try:
         response_json['pred_categories'] = cl.classify(email_text,n_multi=2)
-        response_json['e_classify'] = 'classification done'
+        response_json['request_status'].append('classification done')
     except Exception as e:
-        response_json['e_classify'] = str(e)
+        response_json['request_status'].append(str(e))
         return jsonify(response_json)
     # save training data to db - not required during classification. just testing
     try:
         cl.save_data_to_mongodb(MONGO_DB)
-        response_json['e_save'] = 'saved data back to mongo_db'
+        response_json['request_status'].append('saved data back to mongo_db')
     except Exception as e:
-        response_json['e_save'] = str(e)
+        response_json['request_status'].append(str(e))
         return jsonify(response_json)
     # return category and success/failure notification as response
     return jsonify(response_json)
