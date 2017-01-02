@@ -7,12 +7,13 @@ Created on Wed Dec 28 14:42:16 2016
 """
 
 import email_classifier
-import json
 import pymongo
-from collections import OrderedDict
+import json
 from flask import Flask, request, jsonify
 
+
 MONGO_DB = pymongo.MongoClient().email_classifier_db
+
 
 app = Flask(__name__)
 # export FLASK_APP=/home/srikant/Workspace/Email_Classifier/webservice.py
@@ -25,66 +26,92 @@ def hello_world():
                 <title>Email Classifier</title>
                 <b>To Classify an email:</b>
                 POST request to http://127.0.0.1:5000/ with {'user_id':id,
-                                                             'email_text':txt}
+                                                             'text':txt
+                                                             'n_multi':n_multi}
                 <p></p>
                 <b>To Train the classifier:</b>
                 POST request to http://127.0.0.1:5000/ with {'user_id':id,
-                                                             'email_text':txt,
-                                                             'category':category}
+                                                             'text':txt,
+                                                             'categories':[categories]}
                 '''
     return message
 
 
-@app.route('/classify', methods=['POST']) # Post [user_id, email_txt]
+@app.route('/classify', methods=['POST']) # Post [user_id, email_txt, n_multi]
 def classify():
     content = request.get_json()
     # get user_id
     user_id = content['user_id']
     # get email_text
-    email_text = content['email_text']
+    email_text = content['text']
+    # get number of predicted catergories
+    n_multi = content['n_multi']
     # response json
-    response_json = OrderedDict([('pred_categories', []),
-                                 ('request_status',[])])
+    response_dict = {'predicted_categories':[],'response_message':[]}
     # initialize classifier calls for user_id
     try:
         cl = email_classifier.LogLikelihoodClassifier(user_id)
-        response_json['request_status'].append('classifier initialisation done')
+        response_dict['response_message'].append('Initialized Classifier')
     except Exception as e:
-        response_json['request_status'].append(str(e))
-        return jsonify(response_json)
+        response_dict['response_message'].append(str(e))
+        return jsonify(response_dict)
     # load previous training data from db
     try:
         cl.load_data_from_mongodb(MONGO_DB)
-        response_json['request_status'].append('loaded training data from mongo')
+        response_dict['response_message'].append('Loaded Training Data')
     except Exception as e:
-        response_json['request_status'].append(str(e))
-        return jsonify(response_json)
-    # classify email
+        response_dict['response_message'].append(str(e))
+        return jsonify(response_dict)
+    # classify email text
     try:
-        response_json['pred_categories'] = cl.classify(email_text,n_multi=2)
-        response_json['request_status'].append('classification done')
+        response_dict['predicted_categories'] = cl.classify(email_text, n_multi=n_multi)
+        response_dict['response_message'].append('Classified Text')
     except Exception as e:
-        response_json['request_status'].append(str(e))
-        return jsonify(response_json)
-    # save training data to db - not required during classification. just testing
-    try:
-        cl.save_data_to_mongodb(MONGO_DB)
-        response_json['request_status'].append('saved data back to mongo_db')
-    except Exception as e:
-        response_json['request_status'].append(str(e))
-        return jsonify(response_json)
+        response_dict['response_message'].append(str(e))
+        return jsonify(response_dict)
     # return category and success/failure notification as response
-    return jsonify(response_json)
+    return jsonify(response_dict)
 
 
 @app.route('/train', methods=['POST']) # Post [user_id, email_txt, email_category]
 def train():
+    content = request.get_json()
     # get user_id
-    # get email text
+    user_id = content['user_id']
+    # get email_text
+    email_text = content['text']
     # get email_category
+    email_categories = content['categories']
+    # response json
+    response_dict = {'response_message':[], 'n_items_pre':0, 'n_items_post':0}
     # initialize classifier calls for user_id
+    try:
+        cl = email_classifier.LogLikelihoodClassifier(user_id)
+        response_dict['response_message'].append('Initialized Classifier')
+    except Exception as e:
+        response_dict['response_message'].append(str(e))
+        return jsonify(response_dict)
     # load previous training data from db
-    # train on email
-    # save training data to db
+    try:
+        cl.load_data_from_mongodb(MONGO_DB)
+        response_dict['response_message'].append('Loaded Training Data')
+        response_dict['n_items_pre'] = cl.ds_category_count.sum()
+    except Exception as e:
+        response_dict['response_message'].append(str(e))
+    # train on email text
+    try:
+        cl.train(email_text, email_categories)
+        response_dict['response_message'].append('Trained Classifier')
+        response_dict['n_items_post'] = cl.ds_category_count.sum()
+    except Exception as e:
+        response_dict['response_message'].append(str(e))
+        return jsonify(response_dict)
+    # save updated training data to db
+    try:
+        cl.save_data_to_mongodb(MONGO_DB)
+        response_dict['response_message'].append('Updated Training Data')
+    except Exception as e:
+        response_dict['response_message'].append(str(e))
+        return jsonify(response_dict)
     # return success/failure notification as response
-    return #response
+    return jsonify(response_dict)
