@@ -30,7 +30,7 @@ IGNORE_CATS =   ['untitled',
                  'archives']
 IGNORE_CATS += ['discussion_threads']
 
-CLASSIFY_URL = 'http://127.0.0.1:5000/classify'
+CLASSIFY_URL = 'http://skunkworks.ignitesol.com:5000/classify'
 
 def list_users_n_categories(EMAIL_DIR):
     data_folder = 'DataSets/' + EMAIL_DIR

@@ -9,6 +9,7 @@ Created on Wed Dec 28 14:42:16 2016
 import email_classifier
 import pymongo
 import json
+import time
 from flask import Flask, request, jsonify
 
 
@@ -39,6 +40,7 @@ def hello_world():
 
 @app.route('/classify', methods=['POST']) # Post [user_id, email_txt, n_multi]
 def classify():
+    t1=time.time()
     content = request.get_json()
     # get user_id
     user_id = content['user_id']
@@ -70,11 +72,14 @@ def classify():
         response_dict['response_message'].append(str(e))
         return jsonify(response_dict)
     # return category and success/failure notification as response
+    t2=time.time()
+    print('Processing Time: {:0.3f} sec'.format(t2-t1))
     return jsonify(response_dict)
 
 
 @app.route('/train', methods=['POST']) # Post [user_id, email_txt, email_category]
 def train():
+    t1=time.time()
     content = request.get_json()
     # get user_id
     user_id = content['user_id']
@@ -114,4 +119,6 @@ def train():
         response_dict['response_message'].append(str(e))
         return jsonify(response_dict)
     # return success/failure notification as response
+    t2=time.time()
+    print('Processing Time: {:0.3f} sec'.format(t2-t1))
     return jsonify(response_dict)
