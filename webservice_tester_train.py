@@ -30,7 +30,7 @@ IGNORE_CATS =   ['untitled',
                  'archives']
 IGNORE_CATS += ['discussion_threads']
 
-TRAIN_URL = 'http://127.0.0.1:5000/train'
+TRAIN_URL = 'http://skunkworks.ignitesol.com:5000/train'
 
 def list_users_n_categories(EMAIL_DIR):
     data_folder = 'DataSets/' + EMAIL_DIR
