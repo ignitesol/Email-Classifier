@@ -10,11 +10,14 @@ import email_classifier
 import pymongo
 import json
 import time
+import requests
 from flask import Flask, request, jsonify
 
 
 MONGO_DB = pymongo.MongoClient().email_classifier_db
 
+GA_URL = 'http://www.google-analytics.com/collect'
+GA_ID = 'UA-91609567-1'
 
 app = Flask(__name__)
 # export FLASK_APP=/home/srikant/Workspace/Email_Classifier/webservice.py
@@ -48,12 +51,22 @@ def classify():
     n_multi = content['n_multi']
     # response json
     response_dict = {'predicted_categories':[],'response_message':[]}
+    # ga payload
+    ga_payload = {'v':'1',
+                  't':'event',
+                  'tid': GA_ID,
+                  'cid': '1',
+                  'ec': 'classifier_log',
+                  'ea': 'classification',
+                  'el': '-'}
     # initialize classifier calls for user_id
     try:
         cl = email_classifier.LogLikelihoodClassifier(user_id)
         response_dict['response_message'].append('Initialized Classifier')
     except Exception as e:
         response_dict['response_message'].append(str(e))
+        ga_payload['el'] = str(e)
+        r = requests.post(GA_URL, data = ga_payload)
         return jsonify(response_dict)
     # load previous training data from db
     try:
@@ -61,6 +74,8 @@ def classify():
         response_dict['response_message'].append('Loaded Training Data')
     except Exception as e:
         response_dict['response_message'].append(str(e))
+        ga_payload['el'] = str(e)
+        r = requests.post(GA_URL, data = ga_payload)
         return jsonify(response_dict)
     # classify email text
     try:
@@ -68,10 +83,15 @@ def classify():
         response_dict['response_message'].append('Classified Text')
     except Exception as e:
         response_dict['response_message'].append(str(e))
+        ga_payload['el'] = str(e)
+        r = requests.post(GA_URL, data = ga_payload)
         return jsonify(response_dict)
     # return category and success/failure notification as response
     t2=time.time()
+    ga_payload['el'] = 'successful'
+    r = requests.post(GA_URL, data = ga_payload)
     print('Processing Time: {:0.3f} sec'.format(t2-t1))
+    print(r)
     return jsonify(response_dict)
 
 
@@ -87,12 +107,22 @@ def train():
     email_categories = content['categories']
     # response json
     response_dict = {'response_message':[], 'n_items_pre':0, 'n_items_post':0}
+    # ga payload
+    ga_payload = {'v':'1',
+                  't':'event',
+                  'tid': GA_ID,
+                  'cid': '1',
+                  'ec': 'classifier_log',
+                  'ea': 'training',
+                  'el': '-'}
     # initialize classifier calls for user_id
     try:
         cl = email_classifier.LogLikelihoodClassifier(user_id)
         response_dict['response_message'].append('Initialized Classifier')
     except Exception as e:
         response_dict['response_message'].append(str(e))
+        ga_payload['el'] = str(e)
+        r = requests.post(GA_URL, data = ga_payload)
         return jsonify(response_dict)
     # load previous training data from db
     try:
@@ -108,6 +138,8 @@ def train():
         response_dict['n_items_post'] = cl.ds_category_count.sum()
     except Exception as e:
         response_dict['response_message'].append(str(e))
+        ga_payload['el'] = str(e)
+        r = requests.post(GA_URL, data = ga_payload)
         return jsonify(response_dict)
     # save updated training data to db
     try:
@@ -115,8 +147,13 @@ def train():
         response_dict['response_message'].append('Updated Training Data')
     except Exception as e:
         response_dict['response_message'].append(str(e))
+        ga_payload['el'] = str(e)
+        r = requests.post(GA_URL, data = ga_payload)
         return jsonify(response_dict)
     # return success/failure notification as response
     t2=time.time()
+    ga_payload['el'] = 'successful'
+    r = requests.post(GA_URL, data = ga_payload)
+    print(r)
     print('Processing Time: {:0.3f} sec'.format(t2-t1))
     return jsonify(response_dict)
