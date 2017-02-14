@@ -91,7 +91,6 @@ def classify():
     ga_payload['el'] = 'successful'
     r = requests.post(GA_URL, data = ga_payload)
     print('Processing Time: {:0.3f} sec'.format(t2-t1))
-    print(r.url)
     return jsonify(response_dict)
 
 
@@ -155,5 +154,4 @@ def train():
     ga_payload['el'] = 'successful'
     r = requests.post(GA_URL, data = ga_payload)
     print('Processing Time: {:0.3f} sec'.format(t2-t1))
-    print(r.url)
     return jsonify(response_dict)
