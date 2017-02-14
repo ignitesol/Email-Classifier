@@ -149,7 +149,7 @@ def train():
         return jsonify(response_dict)
     # return success/failure notification as response
     t2=time.time()
-    ga_payload['el'] = 'successful'
+    ga_payload['el'] = ' | '.join(response_dict['response_message'])
     r = requests.post(GA_URL, data = ga_payload)
     print('Processing Time: {:0.3f} sec'.format(t2-t1))
     return jsonify(response_dict)
