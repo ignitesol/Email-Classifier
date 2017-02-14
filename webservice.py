@@ -57,15 +57,14 @@ def classify():
                   'tid': GA_ID,
                   'cid': '1',
                   'ec': 'classifier_log',
-                  'ea': 'classification',
-                  'el': '-'}
+                  'ea': 'classification'}
     # initialize classifier calls for user_id
     try:
         cl = email_classifier.LogLikelihoodClassifier(user_id)
         response_dict['response_message'].append('Initialized Classifier')
     except Exception as e:
         response_dict['response_message'].append(str(e))
-        ga_payload['el'] = response_dict['response_message'][-1]
+        ga_payload['el'] = str(e)
         r = requests.post(GA_URL, data = ga_payload)
         return jsonify(response_dict)
     # load previous training data from db
@@ -74,7 +73,7 @@ def classify():
         response_dict['response_message'].append('Loaded Training Data')
     except Exception as e:
         response_dict['response_message'].append(str(e))
-        ga_payload['el'] = response_dict['response_message'][-1]
+        ga_payload['el'] = str(e)
         r = requests.post(GA_URL, data = ga_payload)
         return jsonify(response_dict)
     # classify email text
@@ -83,7 +82,7 @@ def classify():
         response_dict['response_message'].append('Classified Text')
     except Exception as e:
         response_dict['response_message'].append(str(e))
-        ga_payload['el'] = response_dict['response_message'][-1]
+        ga_payload['el'] = str(e)
         r = requests.post(GA_URL, data = ga_payload)
         return jsonify(response_dict)
     # return category and success/failure notification as response
@@ -121,7 +120,7 @@ def train():
         response_dict['response_message'].append('Initialized Classifier')
     except Exception as e:
         response_dict['response_message'].append(str(e))
-        ga_payload['el'] = response_dict['response_message'][-1]
+        ga_payload['el'] = str(e)
         r = requests.post(GA_URL, data = ga_payload)
         return jsonify(response_dict)
     # load previous training data from db
@@ -138,7 +137,7 @@ def train():
         response_dict['n_items_post'] = cl.ds_category_count.sum()
     except Exception as e:
         response_dict['response_message'].append(str(e))
-        ga_payload['el'] = response_dict['response_message'][-1]
+        ga_payload['el'] = str(e)
         r = requests.post(GA_URL, data = ga_payload)
         return jsonify(response_dict)
     # save updated training data to db
@@ -147,7 +146,7 @@ def train():
         response_dict['response_message'].append('Updated Training Data')
     except Exception as e:
         response_dict['response_message'].append(str(e))
-        ga_payload['el'] = response_dict['response_message'][-1]
+        ga_payload['el'] = str(e)
         r = requests.post(GA_URL, data = ga_payload)
         return jsonify(response_dict)
     # return success/failure notification as response
