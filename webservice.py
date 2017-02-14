@@ -88,7 +88,7 @@ def classify():
         return jsonify(response_dict)
     # return category and success/failure notification as response
     t2=time.time()
-    ga_payload['el'] = response_dict['response_message'][-1]
+    ga_payload['el'] = 'successful'
     ga_payload['ev'] = (t2-t1)*1000
     r = requests.post(GA_URL, data = ga_payload)
     print('Processing Time: {:0.3f} sec'.format(t2-t1))
@@ -152,7 +152,7 @@ def train():
         return jsonify(response_dict)
     # return success/failure notification as response
     t2=time.time()
-    ga_payload['el'] = response_dict['response_message'][-1]
+    ga_payload['el'] = 'successful'
     ga_payload['ev'] = (t2-t1)*1000
     r = requests.post(GA_URL, data = ga_payload)
     print('Processing Time: {:0.3f} sec'.format(t2-t1))
