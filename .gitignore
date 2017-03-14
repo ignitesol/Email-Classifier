@@ -2,4 +2,4 @@ DataSets/
 hdf5_db/
 sqlite_db/
 __pycache__/
-misc/
+.gitignore

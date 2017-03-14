@@ -60,7 +60,7 @@ def train(user_id, email_text, categories):
                      'text':email_text,
                      'categories':categories}
     train_response = requests.post(TRAIN_URL, json=train_request)
-    return train_response.json()
+    return train_response
 
 print('User ID:', user_id)
 print('Email Path:', email_txt_path)
