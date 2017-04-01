@@ -29,11 +29,11 @@ def hello_world():
                 <!doctype html>
                 <title>Email Classifier</title>
                 <b>To Classify an email:</b>
-                POST request to http://skunkworks.ignitesol.com:5000/ with
+                POST request to http://skunkworks.ignitesol.com:5001/ with
                 {'user_id':id, 'text':txt, 'n_multi':n_multi}
                 <p></p>
                 <b>To Train the classifier:</b>
-                POST request to http://skunkworks.ignitesol.com:5000/ with 
+                POST request to http://skunkworks.ignitesol.com:5001/ with 
                 {'user_id':id, 'text':txt, 'categories':[categories]}
                 '''
     return message
